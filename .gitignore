@@ -1,0 +1,37 @@
+# 의존성과 빌드 결과
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# 스크린샷 (저장소에 올리지 않음)
+screenshots/
+.playwright-mcp/
+
+# 테스트 결과
+test-results/
+playwright-report/
+coverage/
+
+# 환경 변수와 배포 도구
+.env
+.env.*
+!.env.example
+.vercel/
+
+# 작업 도구
+.omc/
+
+# 로그
+logs
+*.log
+npm-debug.log*
+
+# 편집기와 OS 파일
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+*.suo
+*.sw?

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>PNGtoWebP 시작 화면</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1014}
+a{color:#A0A7B3}a:hover{color:#ECEEF1}
+button{font-family:inherit;cursor:pointer}
+.chk{background-color:#1A1D23;background-image:conic-gradient(#15171C 25%,transparent 0 50%,#15171C 0 75%,transparent 0);background-size:24px 24px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-direction: column; background: #0E1014; color: #ECEEF1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 20px; border-bottom: 1px solid #232831">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: {{accent}}; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E1014" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="11" height="11" rx="2"></rect><path d="M10 21h9a2 2 0 0 0 2-2v-9"></path></svg>
+      </div>
+      <div style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em">PNGtoWebP</div>
+    </div>
+    <div style="flex: 1 1 0px"></div>
+    <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #A0A7B3">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A0A7B3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+      이미지는 이 기기 밖으로 나가지 않습니다
+    </span>
+  </header>
+
+  <main style="flex: 1 1 auto; width: 100%; max-width: 1360px; margin: 0 auto; box-sizing: border-box; padding: 48px 32px 56px; display: flex; flex-direction: column; gap: 40px">
+
+    <div class="chk" style="position: relative; border-radius: 20px; border: 1.5px dashed #3A404B; padding: 72px 32px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+      <div style="width: 72px; height: 72px; border-radius: 20px; background: #16191F; border: 1px solid #2A2F38; display: flex; align-items: center; justify-content: center">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 10v6"></path><path d="m9 13 3-3 3 3"></path></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.02em">이미지 폴더를 끌어다 놓으세요</h1>
+        <p style="margin: 0; font-size: 15px; color: #A0A7B3">PNG와 JPG를 한 번에 불러와 배경 제거, 자르기, 크기 조절을 거쳐 WebP로 저장합니다.</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px">
+        <button style="display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 22px; border-radius: 12px; border: 0; background: {{accent}}; color: #0E1014; font-size: 15px; font-weight: 700">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E1014" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+          폴더 열기
+        </button>
+        <button style="height: 46px; padding: 0 22px; border-radius: 12px; border: 1px solid #3A404B; background: #16191F; color: #ECEEF1; font-size: 15px; font-weight: 500">파일 선택</button>
+      </div>
+      <div style="font-size: 12px; color: #868E9B">지원 형식 PNG · JPG · JPEG &#160;|&#160; 하위 폴더까지 불러오기</div>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 600">프리셋으로 시작하기</h2>
+        <button style="padding: 0; border: 0; background: transparent; color: #A0A7B3; font-size: 13px">프리셋 관리</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+
+        <button style="text-align: left; padding: 20px; border-radius: 16px; border: 1px solid {{accent}}; background: #161B12; color: #ECEEF1; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: #232831; display: flex; align-items: center; justify-content: center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="11" width="12" height="9" rx="2"></rect><path d="M9 11V8h6v3"></path><path d="M10 15h.01"></path><path d="M14 15h.01"></path></svg>
+            </div>
+            <span style="font-size: 11px; color: #0E1014; background: {{accent}}; padding: 2px 8px; border-radius: 999px; font-weight: 600">최근 사용</span>
+          </div>
+          <div style="font-size: 16px; font-weight: 600">게임 스프라이트</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #A0A7B3">
+            <span>배경 자동 제거 · 여백 4px</span>
+            <span>1:1 · 512×512 Contain</span>
+            <span>WebP 품질 85</span>
+          </div>
+        </button>
+
+        <button style="text-align: left; padding: 20px; border-radius: 16px; border: 1px solid #2A2F38; background: #16191F; color: #ECEEF1; display: flex; flex-direction: column; gap: 14px">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: #232831; display: flex; align-items: center; justify-content: center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ECEEF1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="5" height="5" rx="1.5"></rect><rect x="3" y="14" width="6" height="6" rx="1.5"></rect></svg>
+          </div>
+          <div style="font-size: 16px; font-weight: 600">앱 아이콘 세트</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #A0A7B3">
+            <span>AI 배경 제거</span>
+            <span>1:1 · 512 / 256 / 128 / 64</span>
+            <span>WebP 무손실</span>
+          </div>
+        </button>
+
+        <button style="text-align: left; padding: 20px; border-radius: 16px; border: 1px solid #2A2F38; background: #16191F; color: #ECEEF1; display: flex; flex-direction: column; gap: 14px">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: #232831; display: flex; align-items: center; justify-content: center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ECEEF1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="m2 16 6-5 5 4 3-2 6 4"></path></svg>
+          </div>
+          <div style="font-size: 16px; font-weight: 600">웹 배경 이미지</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #A0A7B3">
+            <span>배경 제거 끔</span>
+            <span>16:9 · 1920×1080 Cover</span>
+            <span>WebP 품질 75</span>
+          </div>
+        </button>
+
+        <button style="text-align: left; padding: 20px; border-radius: 16px; border: 1px solid #2A2F38; background: #16191F; color: #ECEEF1; display: flex; flex-direction: column; gap: 14px">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: #232831; display: flex; align-items: center; justify-content: center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ECEEF1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"></rect><path d="M11 18h2"></path></svg>
+          </div>
+          <div style="font-size: 16px; font-weight: 600">모바일 세로 배경</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #A0A7B3">
+            <span>배경 제거 끔</span>
+            <span>9:16 · 1080×1920 Cover</span>
+            <span>WebP 품질 75</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 600">최근 폴더</h2>
+      <div style="border-radius: 14px; border: 1px solid #232831; overflow: hidden">
+        <sc-for list="{{recent}}" as="item" hint-placeholder-count="3">
+          <button style="width: 100%; display: flex; align-items: center; gap: 14px; padding: 14px 18px; border: 0; border-bottom: 1px solid #1E2229; background: #121419; color: #ECEEF1; text-align: left; font-size: 13px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A7B3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            <span style="flex: 1 1 auto; min-width: 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{item.path}}</span>
+            <span style="color: #A0A7B3; font-size: 12px; white-space: nowrap">{{item.count}}</span>
+            <span style="color: #A0A7B3; font-size: 12px; white-space: nowrap">{{item.preset}}</span>
+            <span style="color: #868E9B; font-size: 12px; white-space: nowrap">{{item.when}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#C6F432","options":["#C6F432","#7CE0FF","#FFB547"]},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      accent: this.props.accent ?? '#C6F432',
+      recent: [
+        { path: 'C:\\Assets\\slime-quest\\sprites', count: '32개 파일', preset: '게임 스프라이트', when: '오늘' },
+        { path: 'C:\\Projects\\study-timer\\icons', count: '6개 파일', preset: '앱 아이콘 세트', when: '어제' },
+        { path: 'C:\\Projects\\landing\\hero-images', count: '12개 파일', preset: '웹 배경 이미지', when: '3일 전' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

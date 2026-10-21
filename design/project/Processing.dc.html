@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>PNGtoWebP 일괄 처리</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1014}
+a{color:#A0A7B3}a:hover{color:#ECEEF1}
+button{font-family:inherit;cursor:pointer}
+.chk-s{background-color:#262A32;background-image:conic-gradient(#1C1F26 25%,transparent 0 50%,#1C1F26 0 75%,transparent 0);background-size:8px 8px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-direction: column; background: #0E1014; color: #ECEEF1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 20px; border-bottom: 1px solid #232831">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: {{accent}}; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E1014" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="11" height="11" rx="2"></rect><path d="M10 21h9a2 2 0 0 0 2-2v-9"></path></svg>
+      </div>
+      <div style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em">PNGtoWebP</div>
+    </div>
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A0A7B3">C:\Assets\slime-quest\sprites</span>
+    <div style="flex: 1 1 0px"></div>
+    <span style="font-size: 12px; color: #A0A7B3">프리셋 · 게임 스프라이트</span>
+  </header>
+
+  <main style="flex: 1 1 auto; width: 100%; box-sizing: border-box; padding: 32px 32px 40px; display: flex; flex-direction: column; gap: 24px">
+
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: {{accent}}">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: {{accent}}"></span>
+            처리 중
+          </div>
+          <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-family: 'JetBrains Mono', 'IBM Plex Sans KR', monospace">18 <span style="color: #5B6270">/ 28</span></h1>
+        </div>
+        <div style="font-size: 13px; color: #A0A7B3; padding-bottom: 6px">지금 처리 중: <span style="color: #ECEEF1">hero_run_02.png</span></div>
+        <div style="flex: 1 1 0px"></div>
+        <button style="display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 10px; border: 1px solid #4A3034; background: #1E1517; color: #FF8A8A; font-size: 14px; font-weight: 600">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#FF8A8A" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>
+          처리 취소
+        </button>
+      </div>
+      <div style="height: 10px; border-radius: 999px; background: #1D2129; overflow: hidden">
+        <div style="width: 64%; height: 100%; border-radius: 999px; background: {{accent}}"></div>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
+      <div style="padding: 18px 20px; border-radius: 14px; background: #16191F; border: 1px solid #232831">
+        <div style="font-size: 12px; color: #A0A7B3">완료</div>
+        <div style="margin-top: 6px; font-size: 28px; font-weight: 500; font-family: 'JetBrains Mono', monospace">17</div>
+      </div>
+      <div style="padding: 18px 20px; border-radius: 14px; background: #16191F; border: 1px solid #232831">
+        <div style="font-size: 12px; color: #A0A7B3">실패</div>
+        <div style="margin-top: 6px; font-size: 28px; font-weight: 500; font-family: 'JetBrains Mono', monospace; color: #FF8A8A">1</div>
+      </div>
+      <div style="padding: 18px 20px; border-radius: 14px; background: #16191F; border: 1px solid #232831">
+        <div style="font-size: 12px; color: #A0A7B3">남은 시간</div>
+        <div style="margin-top: 6px; font-size: 28px; font-weight: 500">약 12초</div>
+      </div>
+      <div style="padding: 18px 20px; border-radius: 14px; background: #16191F; border: 1px solid #232831">
+        <div style="font-size: 12px; color: #A0A7B3">줄어든 용량 (완료분)</div>
+        <div style="margin-top: 6px; display: flex; align-items: baseline; gap: 8px; font-family: 'JetBrains Mono', monospace">
+          <span style="font-size: 15px; color: #A0A7B3">23.8 MB</span>
+          <span style="color: #5B6270">→</span>
+          <span style="font-size: 28px; font-weight: 500">1.5 MB</span>
+          <span style="font-size: 14px; color: {{accent}}">−94%</span>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+        <h2 style="margin: 0 8px 0 0; font-size: 16px; font-weight: 600">파일별 결과</h2>
+        <button style="height: 30px; padding: 0 12px; border-radius: 999px; border: 0; background: #2B3140; color: #ECEEF1; font-size: 12px">전체 28</button>
+        <button style="height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #2A2F38; background: transparent; color: #A0A7B3; font-size: 12px">완료 17</button>
+        <button style="height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #2A2F38; background: transparent; color: #A0A7B3; font-size: 12px">실패 1</button>
+        <button style="height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #2A2F38; background: transparent; color: #A0A7B3; font-size: 12px">대기 10</button>
+      </div>
+      <div style="overflow-x: auto; border-radius: 14px; border: 1px solid #232831">
+        <table style="width: 100%; min-width: 860px; border-collapse: collapse; font-size: 13px">
+          <thead>
+            <tr style="background: #16191F; color: #A0A7B3; font-size: 12px; text-align: left">
+              <th style="padding: 10px 16px; font-weight: 500">파일</th>
+              <th style="padding: 10px 16px; font-weight: 500">원본</th>
+              <th style="padding: 10px 16px; font-weight: 500">결과</th>
+              <th style="padding: 10px 16px; font-weight: 500">절감</th>
+              <th style="padding: 10px 16px; font-weight: 500">상태</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="item" hint-placeholder-count="9">
+              <tr style="border-top: 1px solid #1E2229; background: {{item.bg}}">
+                <td style="padding: 10px 16px">
+                  <div style="display: flex; align-items: center; gap: 12px">
+                    <div class="chk-s" style="width: 36px; height: 36px; border-radius: 6px; flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden">
+                      <svg width="28" height="28" viewBox="0 0 200 200" aria-hidden="true"><path d="M30 150 C30 95 60 52 100 52 C140 52 170 95 170 150 C170 168 150 172 100 172 C50 172 30 168 30 150 Z" fill="{{item.color}}"></path><ellipse cx="80" cy="118" rx="11" ry="14" fill="#FFFFFF"></ellipse><ellipse cx="120" cy="118" rx="11" ry="14" fill="#FFFFFF"></ellipse><circle cx="83" cy="121" r="6" fill="#141820"></circle><circle cx="123" cy="121" r="6" fill="#141820"></circle></svg>
+                    </div>
+                    <div style="display: flex; flex-direction: column">
+                      <span>{{item.name}}</span>
+                      <span style="font-size: 11px; color: #868E9B">{{item.note}}</span>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 10px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A0A7B3">{{item.from}}</td>
+                <td style="padding: 10px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px">{{item.to}}</td>
+                <td style="padding: 10px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{item.saveColor}}">{{item.save}}</td>
+                <td style="padding: 10px 16px">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: {{item.badgeBg}}; color: {{item.badgeFg}}">
+                    <span style="width: 6px; height: 6px; border-radius: 999px; background: {{item.badgeFg}}"></span>
+                    {{item.status}}
+                  </span>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 10px 20px; border-top: 1px solid #232831; font-size: 12px; color: #A0A7B3">
+    <span>동시 처리 8개 · WebGPU</span>
+    <div style="flex: 1 1 0px"></div>
+    <span>저장 위치 <span style="font-family: 'JetBrains Mono', monospace; color: #ECEEF1">C:\Assets\slime-quest\sprites\output</span></span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#C6F432","options":["#C6F432","#7CE0FF","#FFB547"]},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#C6F432';
+    const S = {
+      done: { status: '완료', badgeBg: '#1B2614', badgeFg: '#9BE15D' },
+      run: { status: '처리 중', badgeBg: '#1A2333', badgeFg: '#7FB2FF' },
+      wait: { status: '대기', badgeBg: '#1D2129', badgeFg: '#A0A7B3' },
+      fail: { status: '실패', badgeBg: '#2A1719', badgeFg: '#FF8A8A' }
+    };
+    const raw = [
+      ['slime_blue.png', '#5B8CFF', '1.42 MB', '86 KB', '−94%', 'done', '1024×1024 → 512×512'],
+      ['slime_green.png', '#4CC38A', '1.38 MB', '81 KB', '−94%', 'done', '1024×1024 → 512×512'],
+      ['slime_pink.png', '#F27BB0', '1.40 MB', '84 KB', '−94%', 'done', '1024×1024 → 512×512'],
+      ['hero_idle.png', '#F2A65A', '1.51 MB', '97 KB', '−94%', 'done', '1024×1024 → 512×512'],
+      ['hero_run_01.png', '#F2A65A', '1.47 MB', '94 KB', '−94%', 'done', '1024×1024 → 512×512'],
+      ['enemy_07.png', '#8D6BE8', '0.98 MB', '—', '—', 'fail', '파일이 손상되어 읽을 수 없습니다'],
+      ['hero_run_02.png', '#F2A65A', '1.49 MB', '…', '…', 'run', '배경 제거 중'],
+      ['enemy_bat.png', '#8D6BE8', '1.22 MB', '—', '—', 'wait', '1024×1024'],
+      ['enemy_ghost.png', '#C9D2E0', '1.10 MB', '—', '—', 'wait', '1024×1024']
+    ];
+    const rows = raw.map(([name, color, from, to, save, st, note]) => ({
+      name, color, from, to, save, note, ...S[st],
+      bg: st === 'run' ? '#141A24' : (st === 'fail' ? '#1A1214' : '#121419'),
+      saveColor: st === 'done' ? accent : '#868E9B'
+    }));
+    return { accent, rows };
+  }
+}
+</script>
+</body>
+</html>

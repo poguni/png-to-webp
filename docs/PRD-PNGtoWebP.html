@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PNGtoWebP PRD</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f6f7f9;
+    --text: #1c1f24;
+    --muted: #5d6673;
+    --border: #e3e6ea;
+    --accent: #2f6fdb;
+    --accent-soft: #e8f0fd;
+    --code-bg: #f1f3f6;
+    --nav-w: 260px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181d;
+      --bg-soft: #1c2027;
+      --text: #e4e7ec;
+      --muted: #9aa3b0;
+      --border: #2c323b;
+      --accent: #6c9ef0;
+      --accent-soft: #1f2b40;
+      --code-bg: #20252d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Pretendard", "Malgun Gothic", -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* 왼쪽 네비게이션 */
+  nav {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--nav-w);
+    overflow-y: auto;
+    background: var(--bg-soft);
+    border-right: 1px solid var(--border);
+    padding: 24px 12px;
+    z-index: 20;
+  }
+  nav .brand { font-weight: 700; font-size: 17px; padding: 0 12px; }
+  nav .sub { color: var(--muted); font-size: 12px; padding: 0 12px 16px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  nav ul { list-style: none; margin: 0; padding: 0; }
+  nav a {
+    display: block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  nav a:hover { color: var(--text); background: var(--border); }
+  nav a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  nav ul ul a { padding-left: 28px; font-size: 13px; }
+
+  #menu-btn {
+    display: none;
+    position: fixed; top: 12px; left: 12px; z-index: 30;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer;
+  }
+
+  main { margin-left: var(--nav-w); padding: 40px 48px 120px; max-width: calc(var(--nav-w) + 960px); }
+  h1 { font-size: 28px; margin: 0 0 12px; }
+  h2 { font-size: 22px; margin: 48px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 17px; margin: 28px 0 8px; scroll-margin-top: 20px; }
+  .meta { color: var(--muted); margin: 0; padding-left: 18px; }
+  .status { color: #c2410c; font-weight: 700; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-family: Consolas, "D2Coding", monospace; font-size: 13px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-family: Consolas, "D2Coding", monospace; font-size: 13px; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  .table-wrap { overflow-x: auto; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--bg-soft); }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+  @media (max-width: 860px) {
+    #menu-btn { display: block; }
+    nav { transform: translateX(-100%); transition: transform .2s; }
+    nav.open { transform: translateX(0); box-shadow: 4px 0 16px rgba(0,0,0,.2); }
+    main { margin-left: 0; padding: 56px 16px 80px; }
+  }
+</style>
+</head>
+<body>
+
+<button id="menu-btn" aria-label="목차 열기">☰ 목차</button>
+
+<nav id="nav">
+  <div class="brand">PNGtoWebP</div>
+  <div class="sub">제품 요구사항 문서 v1.1</div>
+  <ul>
+    <li><a href="#s1">1. 배경과 문제</a></li>
+    <li><a href="#s2">2. 목표와 비목표</a></li>
+    <li><a href="#s3">3. 사용자와 대표 시나리오</a></li>
+    <li><a href="#s4">4. 처리 파이프라인</a></li>
+    <li><a href="#s5">5. 기능 요구사항</a>
+      <ul>
+        <li><a href="#f1">F1. 파일 입력과 일괄 처리</a></li>
+        <li><a href="#f2">F2. 배경 투명화</a></li>
+        <li><a href="#f3">F3. 여백 다듬기</a></li>
+        <li><a href="#f4">F4. 자르기</a></li>
+        <li><a href="#f5">F5. 크기 조절</a></li>
+        <li><a href="#f6">F6. WebP 저장과 압축</a></li>
+        <li><a href="#f7">F7. 출력 설정</a></li>
+        <li><a href="#f8">F8. 미리보기와 결과 비교</a></li>
+        <li><a href="#f9">F9. 프리셋</a></li>
+        <li><a href="#f10">F10. 처리 리포트</a></li>
+      </ul>
+    </li>
+    <li><a href="#s6">6. 비기능 요구사항</a></li>
+    <li><a href="#s7">7. 기술 스택</a></li>
+    <li><a href="#s8">8. 마일스톤</a></li>
+    <li><a href="#s9">9. 수용 기준</a></li>
+    <li><a href="#s10">10. 위험과 대응</a></li>
+    <li><a href="#s11">11. 검증 방법</a></li>
+    <li><a href="#s12">12. 결정이 필요한 사항</a></li>
+    <li><a href="#s13">13. 저장소와 배포 운영</a>
+      <ul>
+        <li><a href="#s13-1">13.1 역할 분담</a></li>
+        <li><a href="#s13-2">13.2 폴더 규칙</a></li>
+        <li><a href="#s13-3">13.3 .gitignore</a></li>
+        <li><a href="#s13-4">13.4 vercel.json</a></li>
+        <li><a href="#s13-5">13.5 Vercel 설정</a></li>
+        <li><a href="#s13-6">13.6 커밋과 배포 시점</a></li>
+        <li><a href="#s13-7">13.7 배포 후 확인</a></li>
+      </ul>
+    </li>
+    <li><a href="#s14">14. 변경 이력</a></li>
+  </ul>
+</nav>
+
+<main>
+<h1>PNGtoWebP 제품 요구사항 문서 (PRD)</h1>
+<ul class="meta">
+  <li>버전: v1.1</li>
+  <li>작성일: 2026-10-21</li>
+  <li>상태: <span class="status">승인됨, 구현 중</span> (2026-10-21 승인)</li>
+  <li>플랫폼: 브라우저 웹앱 (Chrome/Edge 기준)</li>
+  <li>저장소와 배포: GitHub 저장소 + Vercel 자동 배포 (<a href="#s13">13장</a>)</li>
+</ul>
+<hr>
+
+<h2 id="s1">1. 배경과 문제</h2>
+<p>앱과 게임을 만들 때마다 다음 작업을 반복하고 있다.</p>
+<ol>
+  <li>나노바나나(Gemini 이미지 생성)로 이미지를 만들어 PNG로 저장</li>
+  <li>포토샵에서 열어 배경을 투명하게 처리</li>
+  <li>이미지 크기를 조절</li>
+  <li>WebP로 다시 저장</li>
+</ol>
+<p>이미지 한 장에 몇 분씩 걸리고, 수십에서 수백 장이 되면 하루 작업 시간 중 큰 부분을 차지한다.</p>
+<p><strong>목표:</strong> 폴더 하나를 선택하고 설정을 한 번 고르면, 배경 제거부터 자르기, 크기 조절, WebP 저장까지 모든 이미지를 한 번에 처리한다.</p>
+
+<h2 id="s2">2. 목표와 비목표</h2>
+<h3>목표</h3>
+<ul>
+  <li>G1. 폴더 안의 PNG/JPG를 WebP로 일괄 변환한다.</li>
+  <li>G2. 포토샵 없이 배경을 투명하게 만든다.</li>
+  <li>G3. 자르기, 크기 조절, 압축 설정을 <strong>프리셋</strong>으로 저장해 두고 클릭 한 번으로 다시 쓴다.</li>
+  <li>G4. 이미지는 외부 서버로 업로드하지 않고 모두 브라우저 안에서 처리한다.</li>
+</ul>
+<h3>비목표 (v1에서 하지 않음)</h3>
+<ul>
+  <li>레이어, 브러시 같은 본격적인 이미지 편집 기능</li>
+  <li>이미지 생성 기능 (나노바나나 API 연동 등)</li>
+  <li>모바일 브라우저 지원</li>
+  <li>서버, 계정, 클라우드 저장</li>
+</ul>
+
+<h2 id="s3">3. 사용자와 대표 시나리오</h2>
+<p><strong>주 사용자:</strong> 바이브 코딩으로 웹앱과 게임을 만드는 1인 개발자 (Windows, Chrome/Edge 사용)</p>
+<div class="table-wrap"><table>
+  <tr><th>#</th><th>시나리오</th><th>기대 결과</th></tr>
+  <tr><td>S1</td><td>나노바나나로 만든 캐릭터 PNG 30장을 게임 스프라이트용 512×512 투명 WebP로 변환</td><td>폴더 선택 → "게임 스프라이트" 프리셋 → 실행. <code>output/</code> 폴더에 30장 저장</td></tr>
+  <tr><td>S2</td><td>앱 배경 JPG 10장을 16:9로 잘라 1920×1080 WebP(품질 80)로 변환</td><td>배경 제거 없이 자르기와 크기 조절만 적용</td></tr>
+  <tr><td>S3</td><td>아이콘 1장을 512, 256, 128, 64 크기로 한꺼번에 출력</td><td>다중 크기 출력으로 <code>icon_512.webp</code>, <code>icon_256.webp</code> 등 생성</td></tr>
+  <tr><td>S4</td><td>배경 제거 결과가 어색한 2장만 따로 손보기</td><td>미리보기에서 해당 이미지만 배경 제거 방식이나 자르기 위치를 바꿔 다시 처리</td></tr>
+</table></div>
+
+<h2 id="s4">4. 처리 파이프라인</h2>
+<p>모든 이미지는 아래 순서로 처리한다. 각 단계는 켜고 끌 수 있다.</p>
+<pre><code>불러오기 → ① 배경 제거 → ② 여백 다듬기 → ③ 자르기 → ④ 크기 조절 → ⑤ WebP 인코딩 → 저장</code></pre>
+<p>배경을 먼저 제거해야 여백 다듬기와 피사체 중심 자르기가 피사체를 기준으로 동작한다. 그래서 배경 제거가 맨 앞에 온다.</p>
+
+<h2 id="s5">5. 기능 요구사항</h2>
+<p>우선순위: <strong>P0</strong> = v1 필수, <strong>P1</strong> = v1에 포함하면 좋음, <strong>P2</strong> = 이후 버전</p>
+
+<h3 id="f1">F1. 파일 입력과 일괄 처리 (P0)</h3>
+<ul>
+  <li>F1-1. <strong>폴더 선택</strong>: File System Access API(<code>showDirectoryPicker</code>)로 폴더를 고른다. 출력 파일을 같은 폴더 안의 <code>output/</code> 하위 폴더에 바로 쓸 수 있다.</li>
+  <li>F1-2. <strong>드래그 앤 드롭</strong>: 파일이나 폴더를 창에 끌어다 놓아도 불러온다.</li>
+  <li>F1-3. 지원 입력 형식: <code>.png</code>, <code>.jpg</code>, <code>.jpeg</code> (대소문자 구분 없음). 그 밖의 파일은 건너뛰고 건너뛴 개수를 알려 준다.</li>
+  <li>F1-4. <strong>하위 폴더 포함</strong> 옵션. 켜면 출력 폴더에서도 원래 하위 폴더 구조를 유지한다.</li>
+  <li>F1-5. 파일 목록을 썸네일로 보여 주고, 체크박스로 처리할 파일을 고를 수 있다.</li>
+  <li>F1-6. <strong>진행 상황</strong>: 전체 진행률, 현재 파일 이름, 성공과 실패 개수, 남은 예상 시간을 표시한다. 중간에 취소할 수 있다.</li>
+  <li>F1-7. 한 파일이 실패해도 나머지는 계속 처리하고, 끝나면 실패 목록과 이유를 보여 준다.</li>
+  <li>F1-8. <strong>ZIP 다운로드 대체 경로</strong>: 폴더에 직접 쓰기를 지원하지 않는 브라우저(Firefox 등)에서는 결과를 ZIP으로 내려받는다.</li>
+</ul>
+
+<h3 id="f2">F2. 배경 투명화 (P0)</h3>
+<p>기본값은 PNG 파일에만 적용한다. JPG에도 적용할지는 옵션으로 고른다.</p>
+<div class="table-wrap"><table>
+  <tr><th>방식</th><th>설명</th><th>적합한 이미지</th><th>우선순위</th></tr>
+  <tr><td><strong>AI 자동 제거</strong></td><td>브라우저에서 ONNX 모델(@imgly/background-removal)을 실행해 피사체를 분리한다. 모델은 처음 한 번만 내려받고 이후에는 캐시를 쓴다.</td><td>복잡한 배경, 사진풍 이미지</td><td>P0</td></tr>
+  <tr><td><strong>단색 배경 제거</strong></td><td>이미지 가장자리에서 시작해 배경색과 비슷한 픽셀을 투명하게 만든다(플러드 필). 허용 오차(0~100)를 조절할 수 있다.</td><td>흰색이나 단색 배경의 일러스트, 아이콘</td><td>P0</td></tr>
+  <tr><td><strong>가짜 체커보드 제거</strong></td><td>나노바나나에 "투명 배경"을 요청하면 회색과 흰색 체크무늬를 그려 넣는 경우가 많다. 가장자리에서 두 가지 색을 동시에 인식해 제거한다.</td><td>나노바나나에서 "투명 배경"으로 생성한 이미지</td><td>P0</td></tr>
+</table></div>
+<ul>
+  <li>F2-1. <strong>경계 다듬기</strong>: 경계를 부드럽게 하는 페더(0~5px)와, 경계에 남은 배경색 테두리를 지우는 디프린지를 제공한다. (P1)</li>
+  <li>F2-2. <strong>자동 방식 추천</strong>: 가장자리 픽셀을 분석해 단색이면 "단색 배경 제거", 체크무늬 패턴이면 "체커보드 제거", 그 밖에는 "AI 자동 제거"를 고른다. (P1)</li>
+  <li>F2-3. 미리보기에서 투명 영역을 체크무늬, 흰색, 검은색 배경 위에 겹쳐 보며 확인할 수 있다.</li>
+</ul>
+
+<h3 id="f3">F3. 여백 다듬기 (P1)</h3>
+<ul>
+  <li>F3-1. 투명한 가장자리를 잘라 피사체에 딱 맞춘다.</li>
+  <li>F3-2. 다듬은 뒤 사방에 여백(px 또는 %)을 더할 수 있다. 게임 스프라이트의 크기를 맞출 때 쓴다.</li>
+</ul>
+
+<h3 id="f4">F4. 자르기 (P0)</h3>
+<ul>
+  <li>F4-1. 비율 프리셋: <strong>원본 유지, 16:9, 9:16, 4:3, 3:4, 1:1, 사용자 지정(가로:세로 직접 입력)</strong></li>
+  <li>F4-2. 일괄 처리할 때 자르기 위치: <strong>가운데</strong>(기본), 위, 아래, 왼쪽, 오른쪽, <strong>피사체 중심</strong>(배경 제거 후 피사체를 둘러싼 영역의 중심, P1)</li>
+  <li>F4-3. 미리보기에서 이미지마다 자르기 영역을 끌어서 옮기거나 크기를 바꿀 수 있다. 바꾼 값은 그 이미지에만 적용한다. (P1)</li>
+</ul>
+
+<h3 id="f5">F5. 크기 조절 (P0)</h3>
+<ul>
+  <li>F5-1. 크기 프리셋: <strong>원본 유지, 1920×1080, 1080×1920, 1024×1024, 512×512, 256×256, 128×128, 사용자 지정(가로×세로)</strong></li>
+  <li>F5-2. 맞춤 방식:
+    <ul>
+      <li><strong>Contain</strong>: 비율을 지키며 안에 맞추고 남는 공간은 투명하게 채움 (기본)</li>
+      <li><strong>Cover</strong>: 비율을 지키며 꽉 채우고 넘치는 부분은 잘라 냄</li>
+      <li><strong>Stretch</strong>: 비율을 무시하고 늘림</li>
+      <li><strong>긴 변 기준</strong>: 긴 변만 지정한 값에 맞춤 (예: 긴 변 1024px)</li>
+    </ul>
+  </li>
+  <li>F5-3. <strong>확대 금지</strong> 옵션(기본 켬): 원본이 목표 크기보다 작으면 키우지 않는다.</li>
+  <li>F5-4. 축소할 때 고품질 리샘플링(Lanczos 계열, pica 라이브러리)을 써서 계단 현상과 흐림을 줄인다.</li>
+  <li>F5-5. <strong>다중 크기 출력</strong> (P1): 크기를 여러 개 고르면 파일마다 한 번에 출력한다. 예: <code>hero_512.webp</code>, <code>hero_256.webp</code></li>
+</ul>
+
+<h3 id="f6">F6. WebP 저장과 압축 (P0)</h3>
+<ul>
+  <li>F6-1. <strong>품질</strong> 슬라이더 0~100 (기본 80)</li>
+  <li>F6-2. <strong>무손실(Lossless)</strong> 모드 켜기/끄기</li>
+  <li>F6-3. <strong>알파 품질</strong> 0~100: 투명 영역 경계의 압축 품질 (기본 100)</li>
+  <li>F6-4. <strong>압축 노력도</strong> 0~6: 높을수록 파일이 작아지지만 느려진다 (기본 4)</li>
+  <li>F6-5. 품질 프리셋: <strong>고화질(90)</strong>, <strong>균형(80)</strong>, <strong>최소 용량(60)</strong>, <strong>무손실</strong></li>
+  <li>F6-6. 인코더는 libwebp를 WebAssembly로 빌드한 <code>@jsquash/webp</code>를 쓴다. 브라우저 내장 <code>canvas.toBlob('image/webp')</code>로는 무손실, 알파 품질, 노력도를 조절할 수 없기 때문이다.</li>
+  <li>F6-7. <strong>목표 용량 모드</strong> (P2): "200KB 이하"처럼 지정하면 품질을 자동으로 찾아 맞춘다.</li>
+</ul>
+
+<h3 id="f7">F7. 출력 설정 (P0)</h3>
+<ul>
+  <li>F7-1. 출력 위치: 원본 폴더 안 <code>output/</code>(기본) 또는 사용자가 고른 폴더</li>
+  <li>F7-2. 파일 이름 규칙: 원래 이름 유지(기본), 접두사와 접미사 추가, 소문자와 하이픈으로 변환(예: <code>My Hero.png</code> → <code>my-hero.webp</code>)</li>
+  <li>F7-3. 같은 이름이 이미 있을 때: <strong>번호 붙이기</strong>(기본), 덮어쓰기, 건너뛰기</li>
+  <li>F7-4. 원본 파일은 절대 수정하거나 삭제하지 않는다.</li>
+  <li>F7-5. EXIF 같은 메타데이터는 제거한다. 용량을 줄이고 개인정보 노출을 막기 위해서다.</li>
+</ul>
+
+<h3 id="f8">F8. 미리보기와 결과 비교 (P0)</h3>
+<ul>
+  <li>F8-1. 선택한 이미지의 처리 전과 후를 슬라이더로 비교한다.</li>
+  <li>F8-2. 원본 용량, 결과 용량, 절감률(%)과 결과 해상도를 표시한다.</li>
+  <li>F8-3. 설정을 바꾸면 선택한 이미지의 미리보기가 1초 안에 갱신된다. 단, AI 배경 제거는 예외로 한다.</li>
+</ul>
+
+<h3 id="f9">F9. 프리셋 (P1)</h3>
+<ul>
+  <li>F9-1. 현재 설정 전체(배경 제거, 자르기, 크기, 압축, 출력)를 이름을 붙여 저장하고 불러온다. 저장은 브라우저의 localStorage에 한다.</li>
+  <li>F9-2. 기본 프리셋을 함께 제공한다:
+    <ul>
+      <li><strong>게임 스프라이트</strong>: 체커보드/단색 자동 제거 → 여백 다듬기 + 여백 4px → 1:1 → 512×512 Contain → 품질 85</li>
+      <li><strong>앱 아이콘 세트</strong>: AI 제거 → 1:1 → 512/256/128/64 다중 출력 → 무손실</li>
+      <li><strong>웹 배경 이미지</strong>: 배경 제거 끔 → 16:9 → 1920×1080 Cover → 품질 75</li>
+      <li><strong>모바일 세로 배경</strong>: 배경 제거 끔 → 9:16 → 1080×1920 Cover → 품질 75</li>
+    </ul>
+  </li>
+  <li>F9-3. 프리셋을 JSON 파일로 내보내고 가져올 수 있다. (P2)</li>
+</ul>
+
+<h3 id="f10">F10. 처리 리포트 (P2)</h3>
+<ul>
+  <li>처리가 끝나면 파일별 원본과 결과의 용량 및 해상도, 적용된 단계를 CSV로 내려받는다.</li>
+</ul>
+
+<h2 id="s6">6. 비기능 요구사항</h2>
+<div class="table-wrap"><table>
+  <tr><th>항목</th><th>요구사항</th></tr>
+  <tr><td>개인정보</td><td>이미지가 기기 밖으로 나가지 않는다. 네트워크 요청은 앱 파일과 AI 모델을 처음 내려받을 때만 발생한다.</td></tr>
+  <tr><td>성능 (단색/체커보드 모드)</td><td>1024×1024 PNG 100장을 중급 PC(4코어, 16GB)에서 <strong>60초 안에</strong> 처리한다.</td></tr>
+  <tr><td>성능 (AI 모드)</td><td>WebGPU를 지원하는 환경에서 1024×1024 기준 <strong>장당 3초 이하</strong>로 처리한다. 지원하지 않으면 WASM으로 대체하며, 장당 10초 이하를 목표로 한다.</td></tr>
+  <tr><td>응답성</td><td>이미지 처리는 Web Worker에서 하며, 처리 중에도 UI가 멈추지 않는다(취소 버튼이 바로 반응).</td></tr>
+  <tr><td>메모리</td><td>한 번에 처리하는 이미지 수를 코어 수 이하로 제한해 500장을 처리해도 탭이 멈추지 않는다.</td></tr>
+  <tr><td>브라우저</td><td>Chrome/Edge 최신 버전을 완전 지원한다. Firefox와 Safari는 ZIP 다운로드 방식으로 제한적으로 지원한다.</td></tr>
+  <tr><td>실행 방식</td><td>개발할 때는 <code>npm run dev</code>로 localhost에서 실행한다. 배포는 GitHub 저장소의 <code>main</code>에 push하면 Vercel이 자동으로 빌드하고 배포한다(13장).</td></tr>
+  <tr><td>교차 출처 격리</td><td>Vercel에서 COOP/COEP 헤더를 보내 <code>crossOriginIsolated</code>를 켠다. WebGPU가 없는 PC에서도 AI 배경 제거가 멀티스레드 WASM으로 동작하게 하기 위해서다(AC-11).</td></tr>
+  <tr><td>오프라인</td><td>AI 모델을 한 번 내려받은 뒤에는 오프라인에서도 동작한다. PWA 설치 지원은 P2.</td></tr>
+</table></div>
+
+<h2 id="s7">7. 기술 스택 (제안)</h2>
+<div class="table-wrap"><table>
+  <tr><th>영역</th><th>선택</th><th>이유</th></tr>
+  <tr><td>빌드/프레임워크</td><td>Vite + React + TypeScript</td><td>바이브 코딩에 익숙한 조합이고 설정이 단순함</td></tr>
+  <tr><td>스타일</td><td>Tailwind CSS</td><td>빠른 UI 구성</td></tr>
+  <tr><td>상태 관리</td><td>Zustand</td><td>가볍고, 설정과 큐 상태를 관리하기에 충분함</td></tr>
+  <tr><td>이미지 디코딩</td><td><code>createImageBitmap</code> + OffscreenCanvas</td><td>브라우저 내장 기능이고 Worker에서 쓸 수 있음</td></tr>
+  <tr><td>AI 배경 제거</td><td><code>@imgly/background-removal</code></td><td>브라우저에서 동작하고 WebGPU를 지원함 (<strong>라이선스 주의</strong>, 10장 참고)</td></tr>
+  <tr><td>리사이즈</td><td><code>pica</code></td><td>고품질 Lanczos 리샘플링</td></tr>
+  <tr><td>WebP 인코딩</td><td><code>@jsquash/webp</code></td><td>libwebp의 모든 옵션 사용 가능</td></tr>
+  <tr><td>병렬 처리</td><td>Web Worker 풀 + <code>comlink</code></td><td>코어 수만큼 병렬로 처리</td></tr>
+  <tr><td>ZIP</td><td><code>JSZip</code></td><td>폴더 쓰기를 지원하지 않는 브라우저용</td></tr>
+  <tr><td>글꼴</td><td><code>@fontsource/ibm-plex-sans-kr</code>, <code>@fontsource/jetbrains-mono</code></td><td>글꼴을 앱에 포함한다. COEP 헤더 때문에 외부 글꼴이 막히는 일을 막기 위해서다.</td></tr>
+  <tr><td>저장소와 호스팅</td><td>GitHub + Vercel</td><td>push하면 자동 배포되고, 헤더를 설정할 수 있으며, 브랜치마다 미리보기 배포를 만들어 준다</td></tr>
+</table></div>
+<h3>화면 구성 (3단 레이아웃)</h3>
+<pre><code>┌──────────────┬───────────────────────────┬──────────────────┐
+│ 파일 목록     │ 미리보기 (전/후 비교)       │ 설정 패널         │
+│ [폴더 열기]   │                           │ ▸ 프리셋          │
+│ ☑ hero.png   │      [ 처리 전 | 처리 후 ]  │ ▸ 배경 제거       │
+│ ☑ enemy.png  │                           │ ▸ 자르기          │
+│ ☐ bg.jpg     │  1.2MB → 84KB (-93%)      │ ▸ 크기 조절       │
+│              │  1024×1024 → 512×512      │ ▸ WebP 압축       │
+│              │                           │ ▸ 출력            │
+├──────────────┴───────────────────────────┴──────────────────┤
+│ [▶ 전체 처리]  ████████░░░░ 18/30  enemy.png  남은 시간 약 12초 │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+
+<h2 id="s8">8. 마일스톤</h2>
+<div class="table-wrap"><table>
+  <tr><th>단계</th><th>범위</th><th>완료 기준</th></tr>
+  <tr><td>M1. 기본 변환</td><td>프로젝트 초기 설정(<code>.gitignore</code>, <code>vercel.json</code>, 글꼴), Vercel 첫 배포, 폴더 열기, 파일 목록, WebP 일괄 변환(품질 조절), <code>output/</code>에 저장</td><td>AC-1, AC-2, AC-8, AC-11, AC-12 통과</td></tr>
+  <tr><td>M2. 자르기와 크기 조절</td><td>비율 및 크기 프리셋, 맞춤 방식, 확대 금지, 고품질 리사이즈</td><td>AC-4, AC-5 통과</td></tr>
+  <tr><td>M3. 배경 투명화</td><td>단색, 체커보드, AI 제거, 투명 배경 미리보기</td><td>AC-3 통과</td></tr>
+  <tr><td>M4. 사용성</td><td>전/후 비교, 프리셋, 여백 다듬기, 다중 크기 출력, 이미지별 개별 조정</td><td>AC-6, AC-7 통과</td></tr>
+  <tr><td>M5. 마무리</td><td>Worker 병렬화, 취소, 오류 리포트, ZIP 대체 경로, 성능 목표 검증</td><td>6장 성능 목표 달성</td></tr>
+</table></div>
+
+<h2 id="s9">9. 수용 기준 (테스트 가능)</h2>
+<ul>
+  <li><strong>AC-1.</strong> PNG 5장, JPG 5장, TXT 1장이 든 폴더를 처리하면 <code>output/</code>에 WebP 10장이 생기고 "1개 건너뜀"이 표시된다.</li>
+  <li><strong>AC-2.</strong> 원본 폴더의 파일 10개는 처리 전후 수정 시각과 해시가 같다.</li>
+  <li><strong>AC-3.</strong> 흰 배경(#FFFFFF) 위에 빨간 원이 있는 PNG를 단색 제거(허용 오차 10)로 처리하면, 결과 WebP의 네 모서리 픽셀 알파값은 0이고 원 중심 픽셀 알파값은 255다. 회색과 흰색 체크무늬 배경 이미지를 체커보드 제거로 처리했을 때도 같은 결과가 나온다.</li>
+  <li><strong>AC-4.</strong> 1600×1200 이미지에 16:9 가운데 자르기와 1920×1080 Contain, 확대 금지를 적용하면 결과는 1600×900이다. 확대 금지를 끄면 1920×1080이다.</li>
+  <li><strong>AC-5.</strong> 1000×500 이미지에 512×512 Contain을 적용하면 결과는 512×512이고, 위아래에 투명한 여백 128px이 생긴다. Cover를 적용하면 결과는 512×512이고 여백이 없다.</li>
+  <li><strong>AC-6.</strong> 같은 이미지를 품질 60으로 변환한 파일이 품질 90으로 변환한 파일보다 작고, 무손실로 변환한 결과는 원본과 픽셀이 완전히 같다.</li>
+  <li><strong>AC-7.</strong> 프리셋을 저장하고 새로고침한 뒤 불러오면 모든 설정값이 저장할 때와 같다.</li>
+  <li><strong>AC-8.</strong> <code>output/</code>에 같은 이름의 파일이 있을 때 "번호 붙이기"를 고르면 <code>name-1.webp</code>로 저장되고, 기존 파일은 그대로 남는다.</li>
+  <li><strong>AC-9.</strong> 100장을 처리하는 도중 취소를 누르면 1초 안에 멈추고, 이미 끝난 파일은 정상적으로 남아 있다.</li>
+  <li><strong>AC-10.</strong> 손상된 PNG가 1장 섞여 있어도 나머지는 모두 처리되고, 실패 목록에 해당 파일 이름과 이유가 표시된다.</li>
+  <li><strong>AC-11.</strong> Vercel 배포 주소에서 개발자 도구 콘솔에 <code>crossOriginIsolated</code>를 입력하면 <code>true</code>가 나오고, 콘솔에 리소스 차단(COEP) 오류가 없다.</li>
+  <li><strong>AC-12.</strong> <code>screenshots/</code> 폴더에 PNG 파일을 저장한 뒤 <code>git status</code>를 실행해도 그 파일이 나타나지 않는다.</li>
+</ul>
+
+<h2 id="s10">10. 위험과 대응</h2>
+<div class="table-wrap"><table>
+  <tr><th>위험</th><th>영향</th><th>대응</th></tr>
+  <tr><td><code>@imgly/background-removal</code>이 <strong>AGPL-3.0</strong> 라이선스</td><td>Vercel 배포 주소는 누구나 접속할 수 있다. 다른 사람에게 제공하면 저장소가 비공개여도 앱 소스를 공개할 의무가 생긴다.</td><td>개인용으로 쓰고 주소를 공유하지 않는 동안에는 현실적인 문제가 적다. 공개 전에 결정한다(12장 Q2). MIT 라이선스 모델(예: transformers.js + MODNet)로 바꿀 수 있게 배경 제거 모듈을 인터페이스 뒤로 분리해 둔다.</td></tr>
+  <tr><td>COOP/COEP 헤더 때문에 외부 리소스가 막힘</td><td>글꼴이나 AI 모델 파일을 못 불러와 화면이 깨지거나 AI 모드가 동작하지 않음</td><td>덜 엄격한 <code>credentialless</code> 값을 쓰고, 글꼴은 앱에 포함한다. 배포할 때마다 AC-11을 확인하고, AI 모델이 막히면 모델 파일을 <code>public/models/</code>에 두고 직접 호스팅한다.</td></tr>
+  <tr><td>AI 모델 용량(약 40~80MB)</td><td>첫 실행 시 내려받기에 시간이 걸림</td><td>처음 쓸 때만 내려받고 진행률을 표시한다. 단색/체커보드 모드는 모델 없이 바로 동작한다.</td></tr>
+  <tr><td>나노바나나의 체크무늬가 균일하지 않음 (노이즈, 그라데이션)</td><td>체커보드 제거가 덜 될 수 있음</td><td>허용 오차 조절을 제공하고, 실패하면 AI 모드로 다시 처리하도록 안내한다. 실제 나노바나나 샘플 10장으로 검증한다.</td></tr>
+  <tr><td>피사체 안에 배경과 같은 색이 있음 (예: 흰 옷)</td><td>플러드 필이 피사체 안까지 침범</td><td>플러드 필은 가장자리와 이어진 영역만 지운다. 그래도 문제가 되면 AI 모드를 쓰도록 안내한다.</td></tr>
+  <tr><td>Firefox와 Safari는 폴더에 직접 쓸 수 없음</td><td>결과를 원본 폴더에 저장하지 못함</td><td>ZIP 다운로드로 대체한다. 주 사용 환경은 Chrome/Edge로 명시한다.</td></tr>
+  <tr><td>대용량이나 대량 처리 시 메모리 부족</td><td>탭이 멈추거나 종료됨</td><td>Worker 동시 처리 수를 제한하고, 처리가 끝난 ImageBitmap과 Blob은 바로 해제한다. 썸네일은 작은 크기로 따로 만든다.</td></tr>
+</table></div>
+
+<h2 id="s11">11. 검증 방법</h2>
+<ol>
+  <li><strong>단위 테스트(Vitest)</strong>: 자르기 영역 계산, 크기 맞춤 계산(AC-4, AC-5), 파일 이름 규칙과 충돌 처리(AC-8), 플러드 필 알고리즘(AC-3)</li>
+  <li><strong>통합 테스트</strong>: 테스트용 이미지 묶음(단색 배경, 체크무늬 배경, 사진, 손상 파일, 다양한 해상도)을 파이프라인에 통과시켜 결과 크기, 알파값, 용량을 확인</li>
+  <li><strong>E2E 테스트(Playwright)</strong>: 파일 불러오기 → 프리셋 선택 → 처리 → 결과 다운로드 흐름 (AC-1, AC-7, AC-9, AC-10)</li>
+  <li><strong>수동 검증</strong>: 실제 나노바나나 생성 이미지 20장을 처리해 배경 제거 품질을 눈으로 확인하고, 포토샵 작업 결과와 비교</li>
+  <li><strong>성능 측정</strong>: 6장의 성능 목표를 실제 PC에서 측정해 기록</li>
+</ol>
+
+<h2 id="s12">12. 결정이 필요한 사항</h2>
+<ul>
+  <li><strong>Q1.</strong> 배경 제거를 JPG에도 기본으로 적용할까? (현재 안: PNG만 기본 적용, JPG는 옵션)</li>
+  <li><strong>Q2.</strong> 배포 주소를 다른 사람에게 공유하거나 공개할 계획이 있는가? 있다면 AGPL 라이선스 때문에 앱 소스를 AGPL로 공개하거나 다른 AI 모델로 바꿔야 한다. (현재 안: 개인용으로 쓰고, 공개하기 전에 결정)</li>
+  <li><strong>Q3.</strong> 기본 프리셋 4종(5장 F9-2)의 구성이 실제 작업과 맞는가? 자주 쓰는 크기나 품질 값이 있으면 반영한다.</li>
+</ul>
+
+<h2 id="s13">13. 저장소와 배포 운영</h2>
+
+<h3 id="s13-1">13.1 역할 분담</h3>
+<div class="table-wrap"><table>
+  <tr><th>작업</th><th>담당</th></tr>
+  <tr><td>코드 작성, 테스트, 문서 갱신</td><td>Claude</td></tr>
+  <tr><td>GitHub 저장소 생성, <code>git init</code> / <code>add</code> / <code>commit</code> / <code>push</code></td><td>사용자</td></tr>
+  <tr><td>Vercel 프로젝트 연결, 배포 확인</td><td>사용자</td></tr>
+</table></div>
+<ul>
+  <li>Claude는 git 명령을 실행하지 않는다. 커밋할 시점이 되면 테스트와 빌드 결과를 확인한 뒤 "지금 커밋하세요"라는 안내와 커밋 메시지를 함께 알려 준다.</li>
+  <li>커밋 메시지 형식: <code>&lt;종류&gt;: &lt;한국어 요약&gt;</code>
+    <ul>
+      <li>종류: <code>feat</code>(기능 추가), <code>fix</code>(버그 수정), <code>docs</code>(문서), <code>chore</code>(설정, 의존성), <code>test</code>(테스트), <code>perf</code>(성능), <code>refactor</code>(동작 변화 없는 구조 개선), <code>style</code>(화면 스타일)</li>
+      <li>필요하면 빈 줄 다음에 본문으로 변경 내용을 적는다.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="s13-2">13.2 폴더 규칙</h3>
+<div class="table-wrap"><table>
+  <tr><th>폴더</th><th>내용</th><th>저장소 포함</th></tr>
+  <tr><td><code>docs/</code></td><td>PRD, 개발 보고서, 기술 메모 등 개발하면서 생기는 문서</td><td>포함</td></tr>
+  <tr><td><code>design/</code></td><td>디자인 시안 등 디자인 관련 파일</td><td>포함</td></tr>
+  <tr><td><code>screenshots/</code></td><td>개발과 검증 중에 찍은 스크린샷</td><td><strong>제외</strong></td></tr>
+  <tr><td><code>tests/fixtures/</code></td><td>테스트용 이미지</td><td>포함</td></tr>
+  <tr><td><code>public/</code></td><td>앱 아이콘 등 정적 파일</td><td>포함</td></tr>
+</table></div>
+<ul>
+  <li>스크린샷은 반드시 <code>screenshots/</code>에 저장한다.</li>
+  <li>테스트용 이미지와 앱 에셋도 PNG이므로, 확장자(<code>*.png</code>)가 아니라 폴더 단위로 제외한다.</li>
+</ul>
+
+<h3 id="s13-3">13.3 .gitignore</h3>
+<p>M1 초기 설정에서 만든다. Vite가 만드는 기본 <code>.gitignore</code>에 아래 내용을 합친다. 지금 미리 만들면 Vite 초기화 과정에서 덮어써질 수 있어서 이 시점에 만든다.</p>
+<pre><code># 의존성과 빌드 결과
+node_modules/
+dist/
+
+# 스크린샷 (저장소에 올리지 않음)
+screenshots/
+.playwright-mcp/
+
+# 테스트 결과
+test-results/
+playwright-report/
+coverage/
+
+# 환경 변수와 배포 도구
+.env
+.env.*
+!.env.example
+.vercel/
+
+# 작업 도구와 OS 파일
+.omc/
+.DS_Store
+Thumbs.db
+*.log</code></pre>
+<p><code>.omc/</code>는 Claude 작업 도구가 쓰는 상태 폴더다. 계획 문서는 <code>docs/</code>에 복사해 두므로 제외해도 된다.</p>
+
+<h3 id="s13-4">13.4 vercel.json</h3>
+<p>M1 초기 설정에서 프로젝트 루트에 만든다.</p>
+<pre><code>{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" }
+      ]
+    }
+  ]
+}</code></pre>
+
+<h3 id="s13-5">13.5 Vercel 설정</h3>
+<p><strong>처음 한 번만 하는 작업</strong></p>
+<ol>
+  <li>Vercel 대시보드에서 Add New → Project를 누르고 GitHub 저장소 <code>PNGtoWebP</code>를 Import한다.</li>
+  <li>Framework Preset이 Vite로 자동 선택되는지 확인한다. Build Command <code>npm run build</code>, Output Directory <code>dist</code>는 기본값 그대로 둔다.</li>
+  <li>Settings → Build and Deployment에서 Node.js 버전을 로컬과 같은 메이저 버전(20 이상)으로 맞춘다.</li>
+  <li>Deploy를 누른다.</li>
+</ol>
+<p><strong>이후 배포 방식</strong></p>
+<ul>
+  <li><code>main</code> 브랜치에 push하면 프로덕션 배포가 자동으로 실행된다.</li>
+  <li>다른 브랜치에 push하면 미리보기 주소로 배포된다.</li>
+</ul>
+<p><strong>환경 변수: 설정할 것 없음</strong></p>
+<ul>
+  <li>이 앱은 API 키, 서버, 데이터베이스를 쓰지 않으므로 Vercel에 등록할 환경 변수가 없다.</li>
+  <li>나중에 환경 변수를 추가하더라도 <code>VITE_</code>로 시작하는 변수는 빌드 결과에 그대로 들어가 누구나 볼 수 있다. 그러므로 비밀 값은 넣지 않는다.</li>
+</ul>
+
+<h3 id="s13-6">13.6 커밋과 배포 시점</h3>
+<div class="table-wrap"><table>
+  <tr><th>#</th><th>시점</th><th>커밋 메시지</th><th>배포</th></tr>
+  <tr><td>C1</td><td>초기 설정 완료 (Vite 프로젝트, <code>.gitignore</code>, <code>vercel.json</code>, 글꼴). <code>docs/</code>, <code>design/</code> 포함</td><td><code>chore: 프로젝트 초기 설정 (Vite, React, TypeScript, Vercel 헤더)</code></td><td><strong>D1</strong> 첫 배포. 빈 화면 상태에서 Vercel 연결과 AC-11 확인</td></tr>
+  <tr><td>C2</td><td>폴더 열기와 파일 목록</td><td><code>feat: 폴더 열기와 이미지 파일 목록 표시</code></td><td></td></tr>
+  <tr><td>C3</td><td>WebP 일괄 변환과 저장 (M1 완료)</td><td><code>feat: WebP 일괄 변환과 output 폴더 저장</code></td><td><strong>D2</strong></td></tr>
+  <tr><td>C4</td><td>비율 자르기</td><td><code>feat: 비율 프리셋 자르기와 자르기 위치 선택</code></td><td></td></tr>
+  <tr><td>C5</td><td>크기 조절 (M2 완료)</td><td><code>feat: 크기 프리셋, 맞춤 방식, 확대 금지 옵션</code></td><td><strong>D3</strong></td></tr>
+  <tr><td>C6</td><td>단색, 체커보드 배경 제거</td><td><code>feat: 단색 배경과 가짜 체커보드 배경 제거</code></td><td></td></tr>
+  <tr><td>C7</td><td>AI 배경 제거 (M3 완료)</td><td><code>feat: AI 배경 제거 추가</code></td><td><strong>D4</strong> 배포 주소에서 AI 모델 로딩과 속도 확인</td></tr>
+  <tr><td>C8</td><td>처리 전후 비교</td><td><code>feat: 처리 전후 비교 미리보기와 용량 표시</code></td><td></td></tr>
+  <tr><td>C9</td><td>프리셋</td><td><code>feat: 설정 프리셋 저장과 기본 프리셋 4종</code></td><td></td></tr>
+  <tr><td>C10</td><td>여백 다듬기, 다중 크기 출력, 이미지별 조정 (M4 완료)</td><td><code>feat: 여백 다듬기, 다중 크기 출력, 이미지별 개별 조정</code></td><td><strong>D5</strong></td></tr>
+  <tr><td>C11</td><td>병렬 처리와 취소</td><td><code>perf: Web Worker 병렬 처리와 처리 취소</code></td><td></td></tr>
+  <tr><td>C12</td><td>실패 목록, ZIP 다운로드 (M5 완료)</td><td><code>feat: 실패 목록과 ZIP 다운로드 대체 경로</code></td><td><strong>D6</strong> v1.0 출시, 태그 <code>v1.0.0</code></td></tr>
+</table></div>
+<ul>
+  <li>모든 커밋 전에 <code>npm test</code>와 <code>npm run build</code>가 통과해야 한다. Claude가 통과를 확인한 뒤 커밋 시점을 알려 준다.</li>
+  <li>표에 없는 버그 수정(<code>fix:</code>)이나 문서 갱신(<code>docs:</code>)도 끝날 때마다 커밋 시점과 메시지를 알려 준다.</li>
+  <li>배포는 push로 일어난다. <strong>D</strong> 표시가 있는 시점에 <code>main</code>으로 push하는 것을 권장한다. 중간 커밋은 로컬에 두었다가 함께 push해도 되고, 다른 브랜치에 push해 미리보기 배포로 확인해도 된다.</li>
+</ul>
+
+<h3 id="s13-7">13.7 배포 후 확인</h3>
+<p>D 시점마다 배포 주소에서 다음을 확인한다.</p>
+<ol>
+  <li>개발자 도구 콘솔에서 <code>crossOriginIsolated</code>를 입력하면 <code>true</code>가 나온다.</li>
+  <li>콘솔에 빨간 오류가 없다. 특히 COEP 때문에 차단된 리소스가 없어야 한다.</li>
+  <li>폴더를 열고 이미지 몇 장을 변환하면 <code>output/</code> 폴더에 저장된다.</li>
+  <li>D4부터는 AI 배경 제거 모델이 내려받아지고 정상 동작한다.</li>
+</ol>
+
+<h2 id="s14">14. 변경 이력</h2>
+<ul>
+  <li><strong>v1.1 (2026-10-21)</strong>: 배포 방식을 GitHub + Vercel로 확정. 13장(저장소와 배포 운영) 추가. 6, 7, 8, 9, 10, 12장 수정.</li>
+  <li><strong>v1.0 (2026-10-21)</strong>: 초안 작성.</li>
+</ul>
+</main>
+
+<script>
+  // 현재 보고 있는 섹션을 네비게이션에 강조
+  const links = [...document.querySelectorAll('#nav a')];
+  const targets = links.map(a => document.querySelector(a.getAttribute('href')));
+  function updateActive() {
+    let current = targets[0];
+    for (const t of targets) {
+      if (t.getBoundingClientRect().top <= 80) current = t;
+    }
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) {
+      current = targets[targets.length - 1];
+    }
+    links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+  }
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+
+  // 좁은 화면에서 목차 열고 닫기
+  const nav = document.getElementById('nav');
+  document.getElementById('menu-btn').addEventListener('click', () => nav.classList.toggle('open'));
+  links.forEach(a => a.addEventListener('click', () => nav.classList.remove('open')));
+</script>
+</body>
+</html>
