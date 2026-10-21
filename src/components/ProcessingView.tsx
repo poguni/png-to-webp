@@ -85,6 +85,12 @@ export default function ProcessingView({ batch }: { batch: Batch }) {
             </button>
           )}
         </div>
+        {batch.modelProgress && (
+          <p className="m-0 text-[13px] text-muted" role="status">
+            AI 모델 내려받는 중 · {formatBytes(batch.modelProgress.loaded)} / {formatBytes(batch.modelProgress.total)}
+            <span className="text-subtle"> (처음 한 번만 내려받고, 이후에는 저장된 모델을 씁니다)</span>
+          </p>
+        )}
         <div
           className="h-2.5 overflow-hidden rounded-full bg-raised"
           role="progressbar"

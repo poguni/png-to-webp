@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import type { BackgroundSettings } from './lib/background.ts'
 import { forEachLimited } from './lib/concurrency.ts'
 import { ratioOf, type CropSettings } from './lib/crop.ts'
-import { encodeToWebp } from './lib/encoder.ts'
+import type { ModelProgress } from './lib/aiBackground.ts'
+import { encodeToWebp, onModelProgress } from './lib/encoder.ts'
 import type { ImageKind } from './lib/imageFiles.ts'
 import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
 import { outputFileName, resolveName, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
@@ -54,6 +55,8 @@ export interface Batch {
   outputLabel: string
   startedAt: number
   finishedAt?: number
+  /** AI 모델을 내려받는 중일 때만 있다 */
+  modelProgress?: ModelProgress
 }
 
 interface AppState {
@@ -81,7 +84,8 @@ interface AppState {
 }
 
 function backgroundNote(result: BackgroundResult): string {
-  if (result.removed) return result.kind === 'checker' ? '배경 제거: 체커보드' : '배경 제거: 단색'
+  if (result.method === 'ai') return '배경 제거: AI'
+  if (result.method === 'color') return result.kind === 'checker' ? '배경 제거: 체커보드' : '배경 제거: 단색'
   if (result.kind === 'transparent') return '배경 제거 안 함: 이미 투명'
   if (result.kind === 'complex') return '배경 제거 안 함: 배경이 복잡함'
   return '배경 제거 안 함: 체커보드가 아님'
@@ -197,6 +201,11 @@ export const useAppStore = create<AppState>()((set, get) => {
         },
       })
 
+      onModelProgress((progress) => {
+        const downloading = progress.loaded < progress.total
+        set((s) => (s.batch ? { batch: { ...s.batch, modelProgress: downloading ? progress : undefined } } : {}))
+      })
+
       // 하위 폴더별로 폴더 핸들과 이름 목록을 한 번만 읽는다.
       const dirs = new Map<string, Promise<{ handle: FileSystemDirectoryHandle; existing: Set<string>; produced: Set<string> }>>()
       function dirFor(path: string) {
@@ -256,7 +265,8 @@ export const useAppStore = create<AppState>()((set, get) => {
         }
       }
 
-      set((s) => (s.batch ? { batch: { ...s.batch, finishedAt: Date.now() } } : {}))
+      onModelProgress(null)
+      set((s) => (s.batch ? { batch: { ...s.batch, finishedAt: Date.now(), modelProgress: undefined } } : {}))
     },
 
     closeBatch: () => set({ batch: null }),

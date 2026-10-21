@@ -137,9 +137,18 @@ export default function SettingsPanel() {
 }
 
 const BACKGROUND_MODES: { value: BackgroundMode; label: string; hint: string }[] = [
-  { value: 'auto', label: '자동', hint: '가장자리 색을 보고 단색이나 체커보드를 골라 지웁니다. 배경이 복잡하면 건너뜁니다.' },
+  {
+    value: 'auto',
+    label: '자동',
+    hint: '단색이나 체커보드 배경은 색으로 빠르게 지우고, 복잡한 배경은 AI로 지웁니다.',
+  },
   { value: 'solid', label: '단색', hint: '가장자리에서 가장 많이 보이는 색 하나를 지웁니다.' },
   { value: 'checker', label: '체커보드', hint: '"투명 배경"으로 생성했을 때 그려진 회색·흰색 체크무늬를 지웁니다.' },
+  {
+    value: 'ai',
+    label: 'AI',
+    hint: 'AI 모델로 피사체를 찾아 배경을 지웁니다. 처음 한 번 모델(약 80MB)을 내려받고, 장당 몇 초가 걸립니다.',
+  },
 ]
 
 function BackgroundSection() {
@@ -148,6 +157,8 @@ function BackgroundSection() {
   const setBackground = (patch: Partial<BackgroundSettings>) =>
     updateSettings({ background: { ...background, ...patch } })
   const { enabled } = background
+  // 허용 오차와 경계 다듬기는 색으로 지울 때만 쓴다.
+  const colorOptions = enabled && background.mode !== 'ai'
 
   return (
     <Section
@@ -166,7 +177,7 @@ function BackgroundSection() {
     >
       <div className={`flex flex-col gap-3.5 ${enabled ? '' : 'opacity-50'}`}>
         <div
-          className="grid grid-cols-3 rounded-[10px] border border-line-strong bg-surface p-[3px]"
+          className="grid grid-cols-4 rounded-[10px] border border-line-strong bg-surface p-[3px]"
           role="group"
           aria-label="배경 제거 방식"
         >
@@ -187,7 +198,7 @@ function BackgroundSection() {
         </div>
         <p className="m-0 text-xs text-subtle">{BACKGROUND_MODES.find((m) => m.value === background.mode)?.hint}</p>
 
-        <label className="flex flex-col gap-1.5 text-xs text-muted">
+        <label className={`flex flex-col gap-1.5 text-xs text-muted ${colorOptions || !enabled ? '' : 'opacity-50'}`}>
           <span className="flex justify-between">
             허용 오차 <span className="font-mono text-ink">{background.tolerance}</span>
           </span>
@@ -196,14 +207,14 @@ function BackgroundSection() {
             min={0}
             max={60}
             value={background.tolerance}
-            disabled={!enabled}
+            disabled={!colorOptions}
             onChange={(e) => setBackground({ tolerance: Number(e.target.value) })}
             className="accent-accent"
           />
           <span className="text-subtle">높이면 배경과 조금 다른 색까지 지웁니다.</span>
         </label>
 
-        <label className="flex flex-col gap-1.5 text-xs text-muted">
+        <label className={`flex flex-col gap-1.5 text-xs text-muted ${colorOptions || !enabled ? '' : 'opacity-50'}`}>
           <span className="flex justify-between">
             경계 다듬기 <span className="font-mono text-ink">{background.feather}px</span>
           </span>
@@ -212,7 +223,7 @@ function BackgroundSection() {
             min={0}
             max={3}
             value={background.feather}
-            disabled={!enabled}
+            disabled={!colorOptions}
             onChange={(e) => setBackground({ feather: Number(e.target.value) })}
             className="accent-accent"
           />

@@ -1,4 +1,11 @@
-import type { BackgroundResult, ConvertOptions, EncodeRequest, EncodeResponse } from '../workers/encode.worker.ts'
+import type {
+  BackgroundResult,
+  ConvertOptions,
+  EncodeRequest,
+  EncodeResponse,
+  ModelProgressMessage,
+} from '../workers/encode.worker.ts'
+import type { ModelProgress } from './aiBackground.ts'
 import type { ImageKind } from './imageFiles.ts'
 
 export interface EncodeResult {
@@ -9,11 +16,21 @@ export interface EncodeResult {
 let worker: Worker | null = null
 let nextId = 1
 const pending = new Map<number, { resolve(result: EncodeResult): void; reject(error: Error): void }>()
+let modelProgressListener: ((progress: ModelProgress) => void) | null = null
+
+/** AI 모델을 내려받는 동안 진행률을 받을 함수를 정한다. */
+export function onModelProgress(listener: ((progress: ModelProgress) => void) | null) {
+  modelProgressListener = listener
+}
 
 function getWorker(): Worker {
   if (worker) return worker
   worker = new Worker(new URL('../workers/encode.worker.ts', import.meta.url), { type: 'module' })
-  worker.onmessage = (event: MessageEvent<EncodeResponse>) => {
+  worker.onmessage = (event: MessageEvent<EncodeResponse | ModelProgressMessage>) => {
+    if ('type' in event.data) {
+      modelProgressListener?.(event.data)
+      return
+    }
     const response = event.data
     const request = pending.get(response.id)
     if (!request) return

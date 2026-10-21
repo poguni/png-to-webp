@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backgroundColors, detectBackground, removeBackground, type RGB } from './background.ts'
+import { backgroundColors, detectBackground, removeBackground, shouldUseAi, type RGB } from './background.ts'
 import type { Pixels } from './crop.ts'
 
 type RGBA = [number, number, number, number]
@@ -71,10 +71,30 @@ describe('backgroundColors', () => {
     expect(backgroundColors({ kind: 'transparent', colors: [] }, 'auto')).toBeNull()
   })
 
-  it('자동 모드에서 복잡한 배경은 건너뛰고, 단색 모드를 직접 고르면 지운다', () => {
+  it('자동 모드에서 복잡한 배경은 색으로 지우지 않고, 단색 모드를 직접 고르면 지운다', () => {
     const complex = { kind: 'complex' as const, colors: [[10, 20, 30], [200, 100, 50]] as RGB[] }
     expect(backgroundColors(complex, 'auto')).toBeNull()
     expect(backgroundColors(complex, 'solid')).toEqual([[10, 20, 30]])
+  })
+
+  it('AI 모드는 색으로 지우지 않는다', () => {
+    expect(backgroundColors(solid, 'ai')).toBeNull()
+  })
+})
+
+describe('shouldUseAi', () => {
+  const of = (kind: 'solid' | 'checker' | 'complex' | 'transparent') => ({ kind, colors: [] })
+
+  it('자동 모드는 복잡한 배경에만 AI를 쓴다 (F2-2)', () => {
+    expect(shouldUseAi(of('complex'), 'auto')).toBe(true)
+    expect(shouldUseAi(of('solid'), 'auto')).toBe(false)
+    expect(shouldUseAi(of('checker'), 'auto')).toBe(false)
+  })
+
+  it('AI 모드는 항상 AI를 쓰고, 이미 투명하면 어느 모드든 건너뛴다', () => {
+    expect(shouldUseAi(of('solid'), 'ai')).toBe(true)
+    expect(shouldUseAi(of('transparent'), 'ai')).toBe(false)
+    expect(shouldUseAi(of('complex'), 'solid')).toBe(false)
   })
 })
 

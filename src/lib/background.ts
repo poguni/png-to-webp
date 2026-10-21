@@ -1,10 +1,10 @@
 import type { Pixels } from './crop.ts'
 
-export type BackgroundMode = 'auto' | 'solid' | 'checker'
+export type BackgroundMode = 'auto' | 'solid' | 'checker' | 'ai'
 
 export interface BackgroundSettings {
   enabled: boolean
-  /** auto: 가장자리를 보고 단색/체커보드를 고른다 */
+  /** auto: 가장자리를 보고 단색·체커보드는 색으로 지우고, 복잡한 배경은 AI로 지운다 (F2-2) */
   mode: BackgroundMode
   /** 배경색과 얼마나 달라도 배경으로 볼지. 0~100 */
   tolerance: number
@@ -98,15 +98,23 @@ export function detectBackground(image: Pixels): Detection {
   return { kind: 'complex', colors }
 }
 
-/** 설정과 감지 결과로 지울 배경색을 정한다. 지우지 않을 때는 null. */
+/**
+ * 설정과 감지 결과로 색으로 지울 배경색을 정한다. 색으로 지우지 않을 때는 null.
+ * 자동 모드에서 복잡한 배경은 색 하나만 지우면 피사체에 구멍이 날 수 있어 null(→ AI가 맡는다).
+ */
 export function backgroundColors(detection: Detection, mode: BackgroundMode): RGB[] | null {
-  if (detection.kind === 'transparent' || detection.colors.length === 0) return null
+  if (mode === 'ai' || detection.kind === 'transparent' || detection.colors.length === 0) return null
   if (mode === 'solid') return detection.colors.slice(0, 1)
   if (mode === 'checker') return detection.colors.length === 2 ? detection.colors : null
   if (detection.kind === 'checker') return detection.colors
   if (detection.kind === 'solid') return detection.colors.slice(0, 1)
-  // 복잡한 배경은 색 하나만 지우면 피사체에 구멍이 날 수 있어 건너뛴다.
   return null
+}
+
+/** 색으로 지우지 못할 때 AI로 지울지 */
+export function shouldUseAi(detection: Detection, mode: BackgroundMode): boolean {
+  if (detection.kind === 'transparent') return false
+  return mode === 'ai' || (mode === 'auto' && detection.kind === 'complex')
 }
 
 /**
