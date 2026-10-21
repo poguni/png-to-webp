@@ -1,12 +1,21 @@
 import decodePng from '@jsquash/png/decode'
 import encodeWebp from '@jsquash/webp/encode'
 import pica from 'pica'
+import {
+  backgroundColors,
+  detectBackground,
+  removeBackground,
+  type BackgroundKind,
+  type BackgroundMode,
+} from '../lib/background.ts'
 import { cropPixels, cropRect, type Anchor, type Pixels } from '../lib/crop.ts'
 import type { ImageKind } from '../lib/imageFiles.ts'
 import { placePixels, resizePlan, type FitMode, type Size } from '../lib/resize.ts'
 
-/** 변환 단계별 옵션. 파이프라인: 디코딩 → 자르기 → 크기 조절 → WebP 인코딩 */
+/** 변환 단계별 옵션. 파이프라인: 디코딩 → 배경 제거 → 자르기 → 크기 조절 → WebP 인코딩 */
 export interface ConvertOptions {
+  /** null이면 배경을 지우지 않는다. */
+  background: { mode: BackgroundMode; tolerance: number; feather: number } | null
   /** 자를 가로/세로 비율. null이면 자르지 않는다. */
   ratio: number | null
   anchor: Anchor
@@ -27,8 +36,14 @@ export interface EncodeRequest {
   options: ConvertOptions
 }
 
+/** 배경 제거 결과. removed가 false면 지우지 않은 이유를 kind로 알 수 있다. */
+export interface BackgroundResult {
+  kind: BackgroundKind
+  removed: boolean
+}
+
 export type EncodeResponse =
-  | { id: number; ok: true; buffer: ArrayBuffer }
+  | { id: number; ok: true; buffer: ArrayBuffer; background: BackgroundResult | null }
   | { id: number; ok: false; error: string }
 
 /**
@@ -47,6 +62,15 @@ async function decode(file: File, kind: ImageKind): Promise<ImageData> {
   } finally {
     bitmap.close()
   }
+}
+
+function background(image: Pixels, options: ConvertOptions): { image: Pixels; result: BackgroundResult | null } {
+  if (!options.background) return { image, result: null }
+  const { mode, tolerance, feather } = options.background
+  const detection = detectBackground(image)
+  const colors = backgroundColors(detection, mode)
+  if (!colors) return { image, result: { kind: detection.kind, removed: false } }
+  return { image: removeBackground(image, colors, tolerance, feather), result: { kind: detection.kind, removed: true } }
 }
 
 function crop(image: Pixels, options: ConvertOptions): Pixels {
@@ -93,9 +117,10 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
     return
   }
   try {
-    const result = await resize(crop(image, options), options)
+    const cleared = background(image, options)
+    const result = await resize(crop(cleared.image, options), options)
     const buffer = await encodeWebp(toImageData(result), { quality: options.quality })
-    const response: EncodeResponse = { id, ok: true, buffer }
+    const response: EncodeResponse = { id, ok: true, buffer, background: cleared.result }
     self.postMessage(response, { transfer: [buffer] })
   } catch (error) {
     const response: EncodeResponse = { id, ok: false, error: `WebP로 변환하지 못했습니다. (${(error as Error).message})` }

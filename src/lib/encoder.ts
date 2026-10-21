@@ -1,9 +1,14 @@
-import type { ConvertOptions, EncodeRequest, EncodeResponse } from '../workers/encode.worker.ts'
+import type { BackgroundResult, ConvertOptions, EncodeRequest, EncodeResponse } from '../workers/encode.worker.ts'
 import type { ImageKind } from './imageFiles.ts'
+
+export interface EncodeResult {
+  buffer: ArrayBuffer
+  background: BackgroundResult | null
+}
 
 let worker: Worker | null = null
 let nextId = 1
-const pending = new Map<number, { resolve(buffer: ArrayBuffer): void; reject(error: Error): void }>()
+const pending = new Map<number, { resolve(result: EncodeResult): void; reject(error: Error): void }>()
 
 function getWorker(): Worker {
   if (worker) return worker
@@ -13,7 +18,7 @@ function getWorker(): Worker {
     const request = pending.get(response.id)
     if (!request) return
     pending.delete(response.id)
-    if (response.ok) request.resolve(response.buffer)
+    if (response.ok) request.resolve({ buffer: response.buffer, background: response.background })
     else request.reject(new Error(response.error))
   }
   worker.onerror = (event) => {
@@ -27,7 +32,7 @@ function getWorker(): Worker {
 }
 
 /** 이미지 파일을 Web Worker에서 WebP로 변환한다. */
-export function encodeToWebp(file: File, kind: ImageKind, options: ConvertOptions): Promise<ArrayBuffer> {
+export function encodeToWebp(file: File, kind: ImageKind, options: ConvertOptions): Promise<EncodeResult> {
   const id = nextId++
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject })

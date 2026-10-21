@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { BackgroundMode, BackgroundSettings } from '../lib/background.ts'
 import { RATIO_PRESETS, type Anchor, type CropSettings, type RatioPreset } from '../lib/crop.ts'
 import { OUTPUT_DIR } from '../lib/imageFiles.ts'
 import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outputNames.ts'
@@ -26,6 +27,7 @@ export default function SettingsPanel() {
 
   return (
     <aside className="flex grow basis-[320px] flex-col border-line bg-panel lg:overflow-y-auto lg:border-l">
+      <BackgroundSection />
       <CropSection />
       <ResizeSection />
 
@@ -131,6 +133,104 @@ export default function SettingsPanel() {
         </p>
       )}
     </aside>
+  )
+}
+
+const BACKGROUND_MODES: { value: BackgroundMode; label: string; hint: string }[] = [
+  { value: 'auto', label: '자동', hint: '가장자리 색을 보고 단색이나 체커보드를 골라 지웁니다. 배경이 복잡하면 건너뜁니다.' },
+  { value: 'solid', label: '단색', hint: '가장자리에서 가장 많이 보이는 색 하나를 지웁니다.' },
+  { value: 'checker', label: '체커보드', hint: '"투명 배경"으로 생성했을 때 그려진 회색·흰색 체크무늬를 지웁니다.' },
+]
+
+function BackgroundSection() {
+  const background = useAppStore((s) => s.settings.background)
+  const { updateSettings } = useAppStore.getState()
+  const setBackground = (patch: Partial<BackgroundSettings>) =>
+    updateSettings({ background: { ...background, ...patch } })
+  const { enabled } = background
+
+  return (
+    <Section
+      title="배경 제거"
+      action={
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setBackground({ enabled: e.target.checked })}
+            className="size-[15px] accent-accent"
+          />
+          사용
+        </label>
+      }
+    >
+      <div className={`flex flex-col gap-3.5 ${enabled ? '' : 'opacity-50'}`}>
+        <div
+          className="grid grid-cols-3 rounded-[10px] border border-line-strong bg-surface p-[3px]"
+          role="group"
+          aria-label="배경 제거 방식"
+        >
+          {BACKGROUND_MODES.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={background.mode === value}
+              disabled={!enabled}
+              onClick={() => setBackground({ mode: value })}
+              className={`h-8 rounded-[7px] text-xs ${
+                background.mode === value ? 'bg-[#2b3140] font-medium text-ink' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="m-0 text-xs text-subtle">{BACKGROUND_MODES.find((m) => m.value === background.mode)?.hint}</p>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted">
+          <span className="flex justify-between">
+            허용 오차 <span className="font-mono text-ink">{background.tolerance}</span>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={60}
+            value={background.tolerance}
+            disabled={!enabled}
+            onChange={(e) => setBackground({ tolerance: Number(e.target.value) })}
+            className="accent-accent"
+          />
+          <span className="text-subtle">높이면 배경과 조금 다른 색까지 지웁니다.</span>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted">
+          <span className="flex justify-between">
+            경계 다듬기 <span className="font-mono text-ink">{background.feather}px</span>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={3}
+            value={background.feather}
+            disabled={!enabled}
+            onChange={(e) => setBackground({ feather: Number(e.target.value) })}
+            className="accent-accent"
+          />
+          <span className="text-subtle">경계에 남은 배경색 테두리를 지우고 부드럽게 만듭니다.</span>
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={background.applyToJpg}
+            disabled={!enabled}
+            onChange={(e) => setBackground({ applyToJpg: e.target.checked })}
+            className="size-[15px] accent-accent"
+          />
+          JPG 파일에도 적용
+        </label>
+      </div>
+    </Section>
   )
 }
 
@@ -342,10 +442,13 @@ function ResizeSection() {
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3.5 border-b border-line px-5 py-[18px]">
-      <h2 className="m-0 text-sm font-semibold">{title}</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="m-0 text-sm font-semibold">{title}</h2>
+        {action}
+      </div>
       {children}
     </section>
   )

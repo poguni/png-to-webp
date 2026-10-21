@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { BackgroundSettings } from './lib/background.ts'
 import { forEachLimited } from './lib/concurrency.ts'
 import { ratioOf, type CropSettings } from './lib/crop.ts'
 import { encodeToWebp } from './lib/encoder.ts'
@@ -7,6 +8,7 @@ import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from 
 import { outputFileName, resolveName, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
 import { scanSource, type Source } from './lib/pickers.ts'
 import { targetSize, type ResizeSettings } from './lib/resize.ts'
+import type { BackgroundResult } from './workers/encode.worker.ts'
 import { createThumbnail } from './lib/thumbnail.ts'
 
 export interface ImageItem {
@@ -25,6 +27,7 @@ export interface ImageItem {
 export type KindFilter = 'all' | ImageKind
 
 export interface Settings {
+  background: BackgroundSettings
   crop: CropSettings
   resize: ResizeSettings
   /** WebP 품질 0~100 (F6-1) */
@@ -41,6 +44,8 @@ export interface ItemResult {
   outputPath?: string
   outputSize?: number
   error?: string
+  /** 처리 중 참고할 내용. 예: 배경 제거 결과 */
+  note?: string
 }
 
 export interface Batch {
@@ -73,6 +78,13 @@ interface AppState {
   updateSettings(patch: Partial<Settings>): void
   startBatch(): Promise<void>
   closeBatch(): void
+}
+
+function backgroundNote(result: BackgroundResult): string {
+  if (result.removed) return result.kind === 'checker' ? '배경 제거: 체커보드' : '배경 제거: 단색'
+  if (result.kind === 'transparent') return '배경 제거 안 함: 이미 투명'
+  if (result.kind === 'complex') return '배경 제거 안 함: 배경이 복잡함'
+  return '배경 제거 안 함: 체커보드가 아님'
 }
 
 /** 썸네일을 동시에 만드는 개수. 큰 이미지를 한꺼번에 디코딩해 메모리가 부족해지는 것을 막는다. */
@@ -148,6 +160,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     scanning: false,
     scanError: null,
     settings: {
+      background: { enabled: false, mode: 'auto', tolerance: 15, feather: 1, applyToJpg: false },
       crop: { ratio: 'original', custom: { width: 21, height: 9 }, anchor: { x: 0.5, y: 0.5 } },
       resize: { size: 'original', custom: { width: 800, height: 600 }, fit: 'contain', noUpscale: true },
       quality: 80,
@@ -218,7 +231,12 @@ export const useAppStore = create<AppState>()((set, get) => {
           }
           dir.produced.add(decision.name.toLowerCase())
 
-          const buffer = await encodeToWebp(item.file, item.kind, {
+          const bg = settings.background
+          const { buffer, background } = await encodeToWebp(item.file, item.kind, {
+            background:
+              bg.enabled && (item.kind === 'PNG' || bg.applyToJpg)
+                ? { mode: bg.mode, tolerance: bg.tolerance, feather: bg.feather }
+                : null,
             ratio: ratioOf(settings.crop),
             anchor: settings.crop.anchor,
             target: targetSize(settings.resize),
@@ -227,7 +245,12 @@ export const useAppStore = create<AppState>()((set, get) => {
             quality: settings.quality,
           })
           await writeFile(dir.handle, decision.name, buffer)
-          setResult(item.id, { status: 'done', outputPath, outputSize: buffer.byteLength })
+          setResult(item.id, {
+            status: 'done',
+            outputPath,
+            outputSize: buffer.byteLength,
+            note: background ? backgroundNote(background) : undefined,
+          })
         } catch (error) {
           setResult(item.id, { status: 'failed', error: (error as Error).message })
         }
