@@ -1,4 +1,4 @@
-import type { EncodeRequest, EncodeResponse } from '../workers/encode.worker.ts'
+import type { ConvertOptions, EncodeRequest, EncodeResponse } from '../workers/encode.worker.ts'
 import type { ImageKind } from './imageFiles.ts'
 
 let worker: Worker | null = null
@@ -27,11 +27,11 @@ function getWorker(): Worker {
 }
 
 /** 이미지 파일을 Web Worker에서 WebP로 변환한다. */
-export function encodeToWebp(file: File, kind: ImageKind, options: { quality: number }): Promise<ArrayBuffer> {
+export function encodeToWebp(file: File, kind: ImageKind, options: ConvertOptions): Promise<ArrayBuffer> {
   const id = nextId++
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject })
-    const request: EncodeRequest = { id, file, kind, quality: options.quality }
+    const request: EncodeRequest = { id, file, kind, options }
     getWorker().postMessage(request)
   })
 }

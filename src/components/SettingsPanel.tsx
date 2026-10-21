@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { RATIO_PRESETS, type Anchor, type CropSettings, type RatioPreset } from '../lib/crop.ts'
 import { OUTPUT_DIR } from '../lib/imageFiles.ts'
 import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outputNames.ts'
 import { useAppStore } from '../store.ts'
@@ -24,6 +25,8 @@ export default function SettingsPanel() {
 
   return (
     <aside className="flex grow basis-[320px] flex-col border-line bg-panel lg:overflow-y-auto lg:border-l">
+      <CropSection />
+
       <Section title="WebP 압축">
         <label className="flex flex-col gap-1.5 text-xs text-muted">
           <span className="flex justify-between">
@@ -126,6 +129,108 @@ export default function SettingsPanel() {
         </p>
       )}
     </aside>
+  )
+}
+
+const RATIO_LABELS: Record<RatioPreset, string> = {
+  original: '원본',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '1:1': '1:1',
+  custom: '사용자 지정',
+}
+
+const ANCHORS: { anchor: Anchor; label: string }[] = [
+  { anchor: { x: 0, y: 0 }, label: '왼쪽 위' },
+  { anchor: { x: 0.5, y: 0 }, label: '위' },
+  { anchor: { x: 1, y: 0 }, label: '오른쪽 위' },
+  { anchor: { x: 0, y: 0.5 }, label: '왼쪽' },
+  { anchor: { x: 0.5, y: 0.5 }, label: '가운데' },
+  { anchor: { x: 1, y: 0.5 }, label: '오른쪽' },
+  { anchor: { x: 0, y: 1 }, label: '왼쪽 아래' },
+  { anchor: { x: 0.5, y: 1 }, label: '아래' },
+  { anchor: { x: 1, y: 1 }, label: '오른쪽 아래' },
+]
+
+function CropSection() {
+  const crop = useAppStore((s) => s.settings.crop)
+  const { updateSettings } = useAppStore.getState()
+  const setCrop = (patch: Partial<CropSettings>) => updateSettings({ crop: { ...crop, ...patch } })
+  const active = crop.ratio !== 'original'
+  const current = ANCHORS.find(({ anchor }) => anchor.x === crop.anchor.x && anchor.y === crop.anchor.y)
+
+  return (
+    <Section title="자르기">
+      <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="자를 비율">
+        {RATIO_PRESETS.map((ratio) => (
+          <button
+            key={ratio}
+            type="button"
+            aria-pressed={crop.ratio === ratio}
+            onClick={() => setCrop({ ratio })}
+            className={`h-8 rounded-lg border text-xs ${ratio === 'custom' ? 'col-span-2' : ''} ${
+              crop.ratio === ratio
+                ? 'border-accent bg-[#1d2414] font-semibold text-accent'
+                : 'border-line-strong text-muted hover:text-ink'
+            }`}
+          >
+            {RATIO_LABELS[ratio]}
+          </button>
+        ))}
+      </div>
+
+      {crop.ratio === 'custom' && (
+        <div className="flex items-end gap-2">
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs text-muted">
+            가로
+            <input
+              type="number"
+              min={1}
+              value={crop.custom.width}
+              onChange={(e) => setCrop({ custom: { ...crop.custom, width: Number(e.target.value) } })}
+              className={inputClass}
+            />
+          </label>
+          <span className="pb-2 text-muted">:</span>
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs text-muted">
+            세로
+            <input
+              type="number"
+              min={1}
+              value={crop.custom.height}
+              onChange={(e) => setCrop({ custom: { ...crop.custom, height: Number(e.target.value) } })}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      )}
+
+      <div className={`flex items-center gap-3.5 ${active ? '' : 'opacity-50'}`}>
+        <div className="grid w-[84px] grid-cols-3 gap-1" role="group" aria-label="자르기 위치">
+          {ANCHORS.map(({ anchor, label }) => {
+            const selected = anchor === current?.anchor
+            return (
+              <button
+                key={label}
+                type="button"
+                aria-label={label}
+                aria-pressed={selected}
+                disabled={!active}
+                onClick={() => setCrop({ anchor })}
+                className={`h-6 rounded ${selected ? 'bg-accent' : 'bg-line hover:bg-line-strong'}`}
+              />
+            )
+          })}
+        </div>
+        <div className="flex flex-col gap-0.5 text-xs text-muted">
+          <span>자르기 위치</span>
+          <span className="text-[13px] text-ink">{current?.label}</span>
+          {!active && <span>비율을 고르면 정할 수 있습니다</span>}
+        </div>
+      </div>
+    </Section>
   )
 }
 

@@ -1,12 +1,21 @@
 import decodePng from '@jsquash/png/decode'
 import encodeWebp from '@jsquash/webp/encode'
+import { cropPixels, cropRect, type Anchor } from '../lib/crop.ts'
 import type { ImageKind } from '../lib/imageFiles.ts'
+
+/** 변환 단계별 옵션. 파이프라인: 디코딩 → 자르기 → WebP 인코딩 */
+export interface ConvertOptions {
+  /** 자를 가로/세로 비율. null이면 자르지 않는다. */
+  ratio: number | null
+  anchor: Anchor
+  quality: number
+}
 
 export interface EncodeRequest {
   id: number
   file: File
   kind: ImageKind
-  quality: number
+  options: ConvertOptions
 }
 
 export type EncodeResponse =
@@ -31,8 +40,14 @@ async function decode(file: File, kind: ImageKind): Promise<ImageData> {
   }
 }
 
+function crop(image: ImageData, options: ConvertOptions): ImageData {
+  const rect = cropRect(image.width, image.height, options.ratio, options.anchor)
+  const cropped = cropPixels(image, rect)
+  return cropped === image ? image : new ImageData(cropped.data as Uint8ClampedArray<ArrayBuffer>, cropped.width, cropped.height)
+}
+
 self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
-  const { id, file, kind, quality } = event.data
+  const { id, file, kind, options } = event.data
   let image: ImageData
   try {
     image = await decode(file, kind)
@@ -42,7 +57,8 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
     return
   }
   try {
-    const buffer = await encodeWebp(image, { quality })
+    image = crop(image, options)
+    const buffer = await encodeWebp(image, { quality: options.quality })
     const response: EncodeResponse = { id, ok: true, buffer }
     self.postMessage(response, { transfer: [buffer] })
   } catch (error) {

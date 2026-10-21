@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { forEachLimited } from './lib/concurrency.ts'
+import { ratioOf, type CropSettings } from './lib/crop.ts'
 import { encodeToWebp } from './lib/encoder.ts'
 import type { ImageKind } from './lib/imageFiles.ts'
 import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
@@ -23,6 +24,7 @@ export interface ImageItem {
 export type KindFilter = 'all' | ImageKind
 
 export interface Settings {
+  crop: CropSettings
   /** WebP 품질 0~100 (F6-1) */
   quality: number
   naming: NamingOptions
@@ -144,6 +146,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     scanning: false,
     scanError: null,
     settings: {
+      crop: { ratio: 'original', custom: { width: 21, height: 9 }, anchor: { x: 0.5, y: 0.5 } },
       quality: 80,
       naming: { case: 'keep', prefix: '', suffix: '' },
       conflict: 'number',
@@ -212,7 +215,11 @@ export const useAppStore = create<AppState>()((set, get) => {
           }
           dir.produced.add(decision.name.toLowerCase())
 
-          const buffer = await encodeToWebp(item.file, item.kind, { quality: settings.quality })
+          const buffer = await encodeToWebp(item.file, item.kind, {
+            ratio: ratioOf(settings.crop),
+            anchor: settings.crop.anchor,
+            quality: settings.quality,
+          })
           await writeFile(dir.handle, decision.name, buffer)
           setResult(item.id, { status: 'done', outputPath, outputSize: buffer.byteLength })
         } catch (error) {
