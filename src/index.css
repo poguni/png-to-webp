@@ -43,3 +43,9 @@
   background-image: conic-gradient(#15171c 25%, transparent 0 50%, #15171c 0 75%, transparent 0);
   background-size: 24px 24px;
 }
+
+@utility checker-sm {
+  background-color: #262a32;
+  background-image: conic-gradient(#1c1f26 25%, transparent 0 50%, #1c1f26 0 75%, transparent 0);
+  background-size: 8px 8px;
+}
