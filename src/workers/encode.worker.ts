@@ -1,15 +1,24 @@
 import decodePng from '@jsquash/png/decode'
 import encodeWebp from '@jsquash/webp/encode'
-import { cropPixels, cropRect, type Anchor } from '../lib/crop.ts'
+import pica from 'pica'
+import { cropPixels, cropRect, type Anchor, type Pixels } from '../lib/crop.ts'
 import type { ImageKind } from '../lib/imageFiles.ts'
+import { placePixels, resizePlan, type FitMode, type Size } from '../lib/resize.ts'
 
-/** 변환 단계별 옵션. 파이프라인: 디코딩 → 자르기 → WebP 인코딩 */
+/** 변환 단계별 옵션. 파이프라인: 디코딩 → 자르기 → 크기 조절 → WebP 인코딩 */
 export interface ConvertOptions {
   /** 자를 가로/세로 비율. null이면 자르지 않는다. */
   ratio: number | null
   anchor: Anchor
+  /** 목표 크기. null이면 크기를 바꾸지 않는다. */
+  target: Size | null
+  fit: FitMode
+  noUpscale: boolean
   quality: number
 }
+
+// Worker 안이라 pica가 Worker를 또 만들지 않도록 js/wasm만 쓴다.
+const resizer = pica({ features: ['js', 'wasm'] })
 
 export interface EncodeRequest {
   id: number
@@ -40,10 +49,37 @@ async function decode(file: File, kind: ImageKind): Promise<ImageData> {
   }
 }
 
-function crop(image: ImageData, options: ConvertOptions): ImageData {
-  const rect = cropRect(image.width, image.height, options.ratio, options.anchor)
-  const cropped = cropPixels(image, rect)
-  return cropped === image ? image : new ImageData(cropped.data as Uint8ClampedArray<ArrayBuffer>, cropped.width, cropped.height)
+function crop(image: Pixels, options: ConvertOptions): Pixels {
+  return cropPixels(image, cropRect(image.width, image.height, options.ratio, options.anchor))
+}
+
+/** 고품질(mks2013 필터)로 크기를 바꾸고, Contain이면 투명한 여백 위에 놓는다. */
+async function resize(image: Pixels, options: ConvertOptions): Promise<Pixels> {
+  const plan = resizePlan(image.width, image.height, options.target, options.fit, options.noUpscale)
+  if (!plan) return image
+  const source = cropPixels(image, plan.source)
+  const resized =
+    source.width === plan.dest.width && source.height === plan.dest.height
+      ? source.data
+      : await resizer.resizeBuffer({
+          src: source.data,
+          width: source.width,
+          height: source.height,
+          toWidth: plan.dest.width,
+          toHeight: plan.dest.height,
+          filter: 'mks2013',
+        })
+  const pixels = {
+    data: new Uint8ClampedArray(resized.buffer, resized.byteOffset, resized.byteLength),
+    width: plan.dest.width,
+    height: plan.dest.height,
+  }
+  return placePixels(plan, pixels, plan.dest)
+}
+
+function toImageData(pixels: Pixels): ImageData {
+  if (pixels instanceof ImageData) return pixels
+  return new ImageData(pixels.data as Uint8ClampedArray<ArrayBuffer>, pixels.width, pixels.height)
 }
 
 self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
@@ -57,8 +93,8 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
     return
   }
   try {
-    image = crop(image, options)
-    const buffer = await encodeWebp(image, { quality: options.quality })
+    const result = await resize(crop(image, options), options)
+    const buffer = await encodeWebp(toImageData(result), { quality: options.quality })
     const response: EncodeResponse = { id, ok: true, buffer }
     self.postMessage(response, { transfer: [buffer] })
   } catch (error) {

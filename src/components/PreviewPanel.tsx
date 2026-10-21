@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react'
 import { useElementSize } from '../hooks/useElementSize.ts'
 import { cropRect, ratioOf } from '../lib/crop.ts'
 import { formatBytes } from '../lib/format.ts'
+import { resizePlan, targetSize } from '../lib/resize.ts'
 import { useAppStore } from '../store.ts'
 import { AlertIcon } from './icons.tsx'
 
 export default function PreviewPanel() {
   const item = useAppStore((s) => s.items.find((i) => i.id === s.selectedId))
   const crop = useAppStore((s) => s.settings.crop)
+  const resize = useAppStore((s) => s.settings.resize)
   const file = item?.file
   const ready = Boolean(item?.width)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -36,6 +38,9 @@ export default function PreviewPanel() {
   const ratio = ratioOf(crop)
   const rect = ready ? cropRect(width, height, ratio, crop.anchor) : null
   const cropped = rect !== null && ratio !== null && (rect.width !== width || rect.height !== height)
+  const plan = rect ? resizePlan(rect.width, rect.height, targetSize(resize), resize.fit, resize.noUpscale) : null
+  const final = plan ?? rect
+  const changed = final !== null && (final.width !== width || final.height !== height)
   // 작은 이미지는 키우지 않고 원래 크기로 보여 준다.
   const scale = ready && frame.width > 0 ? Math.min(frame.width / width, frame.height / height, 1) : 0
 
@@ -85,8 +90,8 @@ export default function PreviewPanel() {
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
         <InfoCard label="파일 용량" value={formatBytes(item.file.size)} mono />
         <InfoCard
-          label={cropped ? `자른 뒤 해상도 (원본 ${width}×${height})` : '해상도'}
-          value={!ready ? '확인 중' : cropped && rect ? `${rect.width}×${rect.height}` : `${width}×${height}`}
+          label={changed ? `결과 해상도 (원본 ${width}×${height})` : '해상도'}
+          value={!ready || !final ? '확인 중' : `${final.width}×${final.height}`}
           mono
         />
         <InfoCard label="형식" value={item.kind} />

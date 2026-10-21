@@ -6,6 +6,7 @@ import type { ImageKind } from './lib/imageFiles.ts'
 import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
 import { outputFileName, resolveName, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
 import { scanSource, type Source } from './lib/pickers.ts'
+import { targetSize, type ResizeSettings } from './lib/resize.ts'
 import { createThumbnail } from './lib/thumbnail.ts'
 
 export interface ImageItem {
@@ -25,6 +26,7 @@ export type KindFilter = 'all' | ImageKind
 
 export interface Settings {
   crop: CropSettings
+  resize: ResizeSettings
   /** WebP 품질 0~100 (F6-1) */
   quality: number
   naming: NamingOptions
@@ -147,6 +149,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     scanError: null,
     settings: {
       crop: { ratio: 'original', custom: { width: 21, height: 9 }, anchor: { x: 0.5, y: 0.5 } },
+      resize: { size: 'original', custom: { width: 800, height: 600 }, fit: 'contain', noUpscale: true },
       quality: 80,
       naming: { case: 'keep', prefix: '', suffix: '' },
       conflict: 'number',
@@ -218,6 +221,9 @@ export const useAppStore = create<AppState>()((set, get) => {
           const buffer = await encodeToWebp(item.file, item.kind, {
             ratio: ratioOf(settings.crop),
             anchor: settings.crop.anchor,
+            target: targetSize(settings.resize),
+            fit: settings.resize.fit,
+            noUpscale: settings.resize.noUpscale,
             quality: settings.quality,
           })
           await writeFile(dir.handle, decision.name, buffer)

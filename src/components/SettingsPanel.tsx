@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { RATIO_PRESETS, type Anchor, type CropSettings, type RatioPreset } from '../lib/crop.ts'
 import { OUTPUT_DIR } from '../lib/imageFiles.ts'
 import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outputNames.ts'
+import { SIZE_PRESETS, targetSize, type FitMode, type ResizeSettings } from '../lib/resize.ts'
 import { useAppStore } from '../store.ts'
 
 const QUALITY_PRESETS = [
@@ -26,6 +27,7 @@ export default function SettingsPanel() {
   return (
     <aside className="flex grow basis-[320px] flex-col border-line bg-panel lg:overflow-y-auto lg:border-l">
       <CropSection />
+      <ResizeSection />
 
       <Section title="WebP 압축">
         <label className="flex flex-col gap-1.5 text-xs text-muted">
@@ -229,6 +231,112 @@ function CropSection() {
           <span className="text-[13px] text-ink">{current?.label}</span>
           {!active && <span>비율을 고르면 정할 수 있습니다</span>}
         </div>
+      </div>
+    </Section>
+  )
+}
+
+const FITS: { value: FitMode; label: string }[] = [
+  { value: 'contain', label: 'Contain' },
+  { value: 'cover', label: 'Cover' },
+  { value: 'stretch', label: 'Stretch' },
+  { value: 'long', label: '긴 변' },
+]
+
+function fitHint(fit: FitMode, longEdge: number | null): string {
+  if (fit === 'contain') return '비율을 지키며 안에 맞추고, 남는 공간은 투명하게 채웁니다.'
+  if (fit === 'cover') return '비율을 지키며 꽉 채우고, 넘치는 부분은 가운데를 기준으로 잘라 냅니다.'
+  if (fit === 'stretch') return '비율을 무시하고 목표 크기에 맞춰 늘리거나 줄입니다.'
+  return `긴 변을 ${longEdge ?? '목표'}px에 맞추고 비율을 유지합니다.`
+}
+
+function ResizeSection() {
+  const resize = useAppStore((s) => s.settings.resize)
+  const { updateSettings } = useAppStore.getState()
+  const setResize = (patch: Partial<ResizeSettings>) => updateSettings({ resize: { ...resize, ...patch } })
+  const target = targetSize(resize)
+  const active = resize.size !== 'original'
+
+  return (
+    <Section title="크기 조절">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="목표 크기">
+        {SIZE_PRESETS.map((size) => (
+          <button
+            key={size}
+            type="button"
+            aria-pressed={resize.size === size}
+            onClick={() => setResize({ size })}
+            className={`h-8 rounded-lg border px-2.5 text-xs ${size.includes('x') ? 'font-mono' : ''} ${
+              resize.size === size
+                ? 'border-accent bg-[#1d2414] font-semibold text-accent'
+                : 'border-line-strong text-muted hover:text-ink'
+            }`}
+          >
+            {size === 'original' ? '원본' : size === 'custom' ? '사용자 지정' : size.replace('x', '×')}
+          </button>
+        ))}
+      </div>
+
+      {resize.size === 'custom' && (
+        <div className="flex items-end gap-2">
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs text-muted">
+            가로 (px)
+            <input
+              type="number"
+              min={1}
+              value={resize.custom.width}
+              onChange={(e) => setResize({ custom: { ...resize.custom, width: Number(e.target.value) } })}
+              className={inputClass}
+            />
+          </label>
+          <span className="pb-2 text-muted">×</span>
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs text-muted">
+            세로 (px)
+            <input
+              type="number"
+              min={1}
+              value={resize.custom.height}
+              onChange={(e) => setResize({ custom: { ...resize.custom, height: Number(e.target.value) } })}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      )}
+
+      <div className={`flex flex-col gap-2 ${active ? '' : 'opacity-50'}`}>
+        <div
+          className="grid grid-cols-4 rounded-[10px] border border-line-strong bg-surface p-[3px]"
+          role="group"
+          aria-label="맞춤 방식"
+        >
+          {FITS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={resize.fit === value}
+              disabled={!active}
+              onClick={() => setResize({ fit: value })}
+              className={`h-8 rounded-[7px] text-xs ${
+                resize.fit === value ? 'bg-[#2b3140] font-medium text-ink' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="m-0 text-xs text-subtle">
+          {active ? fitHint(resize.fit, target && Math.max(target.width, target.height)) : '크기를 고르면 맞춤 방식을 정할 수 있습니다.'}
+        </p>
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={resize.noUpscale}
+            disabled={!active}
+            onChange={(e) => setResize({ noUpscale: e.target.checked })}
+            className="size-[15px] accent-accent"
+          />
+          확대 금지 (목표보다 작은 원본은 원래 크기로 둡니다)
+        </label>
       </div>
     </Section>
   )

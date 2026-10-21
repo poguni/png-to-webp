@@ -51,7 +51,8 @@ export default function App() {
         <ProcessingView batch={batch} />
       ) : hasSource ? (
         <>
-          <div className="flex flex-1 flex-wrap lg:min-h-0">
+          {/* 좁은 화면에서는 패널을 아래로 쌓고, 넓은 화면에서는 한 줄에 두고 각 패널 안에서 스크롤한다. */}
+          <div className="flex flex-1 flex-wrap lg:min-h-0 lg:flex-nowrap">
             <FileList />
             <PreviewPanel />
             <SettingsPanel />
