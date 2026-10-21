@@ -55,6 +55,14 @@ export function LockIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function PlayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon fill="currentColor" stroke="none" {...props}>
+      <path d="M7 4.5v15l12-7.5z" />
+    </Icon>
+  )
+}
+
 export function AlertIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

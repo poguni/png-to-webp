@@ -2,6 +2,8 @@ import { useState, type DragEvent } from 'react'
 import AppHeader from './components/AppHeader.tsx'
 import FileList from './components/FileList.tsx'
 import PreviewPanel from './components/PreviewPanel.tsx'
+import ProcessingView from './components/ProcessingView.tsx'
+import SettingsPanel from './components/SettingsPanel.tsx'
 import StartScreen from './components/StartScreen.tsx'
 import StatusBar from './components/StatusBar.tsx'
 import { readDrop } from './lib/pickers.ts'
@@ -9,11 +11,13 @@ import { useAppStore } from './store.ts'
 
 export default function App() {
   const hasSource = useAppStore((s) => s.source !== null)
+  const batch = useAppStore((s) => s.batch)
   const open = useAppStore((s) => s.open)
   const [dragging, setDragging] = useState(false)
 
   function handleDragOver(e: DragEvent) {
-    if (!e.dataTransfer.types.includes('Files')) return
+    // 처리 중이거나 결과 화면에서는 새로 불러오지 않는다.
+    if (batch || !e.dataTransfer.types.includes('Files')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
     setDragging(true)
@@ -43,11 +47,14 @@ export default function App() {
       onDrop={handleDrop}
     >
       <AppHeader />
-      {hasSource ? (
+      {batch ? (
+        <ProcessingView batch={batch} />
+      ) : hasSource ? (
         <>
           <div className="flex flex-1 flex-wrap lg:min-h-0">
             <FileList />
             <PreviewPanel />
+            <SettingsPanel />
           </div>
           <StatusBar />
         </>

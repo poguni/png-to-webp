@@ -11,6 +11,9 @@ const crossOriginHeaders = Object.fromEntries(
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // jSquash의 WASM 파일 경로가 Vite 사전 번들링에서 깨지는 문제를 피한다.
+  optimizeDeps: { exclude: ['@jsquash/png', '@jsquash/webp'] },
+  worker: { format: 'es' },
   server: { headers: crossOriginHeaders },
   preview: { headers: crossOriginHeaders },
   test: {
