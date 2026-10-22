@@ -9,7 +9,7 @@ import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from 
 import { outputFileName, resolveName, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
 import { scanSource, type Source } from './lib/pickers.ts'
 import { targetSize, type ResizeSettings } from './lib/resize.ts'
-import type { BackgroundResult } from './workers/encode.worker.ts'
+import type { BackgroundResult, ConvertOptions } from './workers/encode.worker.ts'
 import { createThumbnail } from './lib/thumbnail.ts'
 
 export interface ImageItem {
@@ -83,12 +83,27 @@ interface AppState {
   closeBatch(): void
 }
 
-function backgroundNote(result: BackgroundResult): string {
+export function backgroundNote(result: BackgroundResult): string {
   if (result.method === 'ai') return '배경 제거: AI'
   if (result.method === 'color') return result.kind === 'checker' ? '배경 제거: 체커보드' : '배경 제거: 단색'
   if (result.kind === 'transparent') return '배경 제거 안 함: 이미 투명'
   if (result.kind === 'complex') return '배경 제거 안 함: 배경이 복잡함'
   return '배경 제거 안 함: 체커보드가 아님'
+}
+
+/** 설정을 이미지 한 장의 변환 옵션으로 바꾼다. 일괄 처리와 미리보기가 함께 쓴다. */
+export function convertOptions(settings: Settings, kind: ImageKind): ConvertOptions {
+  const bg = settings.background
+  return {
+    background:
+      bg.enabled && (kind === 'PNG' || bg.applyToJpg) ? { mode: bg.mode, tolerance: bg.tolerance, feather: bg.feather } : null,
+    ratio: ratioOf(settings.crop),
+    anchor: settings.crop.anchor,
+    target: targetSize(settings.resize),
+    fit: settings.resize.fit,
+    noUpscale: settings.resize.noUpscale,
+    quality: settings.quality,
+  }
 }
 
 /** 썸네일을 동시에 만드는 개수. 큰 이미지를 한꺼번에 디코딩해 메모리가 부족해지는 것을 막는다. */
@@ -240,19 +255,7 @@ export const useAppStore = create<AppState>()((set, get) => {
           }
           dir.produced.add(decision.name.toLowerCase())
 
-          const bg = settings.background
-          const { buffer, background } = await encodeToWebp(item.file, item.kind, {
-            background:
-              bg.enabled && (item.kind === 'PNG' || bg.applyToJpg)
-                ? { mode: bg.mode, tolerance: bg.tolerance, feather: bg.feather }
-                : null,
-            ratio: ratioOf(settings.crop),
-            anchor: settings.crop.anchor,
-            target: targetSize(settings.resize),
-            fit: settings.resize.fit,
-            noUpscale: settings.resize.noUpscale,
-            quality: settings.quality,
-          })
+          const { buffer, background } = await encodeToWebp(item.file, item.kind, convertOptions(settings, item.kind))
           await writeFile(dir.handle, decision.name, buffer)
           setResult(item.id, {
             status: 'done',
