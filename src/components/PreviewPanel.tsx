@@ -3,7 +3,7 @@ import { useElementSize } from '../hooks/useElementSize.ts'
 import { useResultPreview } from '../hooks/useResultPreview.ts'
 import type { BackgroundMode } from '../lib/background.ts'
 import type { Rect } from '../lib/crop.ts'
-import { formatBytes } from '../lib/format.ts'
+import { formatBytes, formatSaving } from '../lib/format.ts'
 import { cropInSource, cropOverride, resultPlacement } from '../lib/preview.ts'
 import { resizePlan } from '../lib/resize.ts'
 import { convertOptions, useAppStore, type ImageOverrides } from '../store.ts'
@@ -142,7 +142,6 @@ export default function PreviewPanel() {
       ? '미리보기 만드는 중…'
       : null
 
-  const saved = result ? Math.round((1 - result.size / item.file.size) * 100) : null
 
   return (
     <main className="flex min-w-0 grow-[999] basis-[560px] flex-col gap-4 px-5 pt-4 pb-5 lg:min-h-0">
@@ -358,7 +357,7 @@ export default function PreviewPanel() {
           <Change
             before={formatBytes(item.file.size)}
             after={result ? formatBytes(result.size) : '—'}
-            extra={saved === null ? null : saved >= 0 ? `−${saved}%` : `+${-saved}%`}
+            extra={result ? formatSaving(item.file.size, result.size) : null}
           />
         </InfoCard>
         <InfoCard label={sizeCount > 1 ? `해상도 (${sizeCount}개 크기 중 첫 번째)` : '해상도'}>

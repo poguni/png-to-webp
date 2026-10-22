@@ -5,7 +5,7 @@ import { ratioOf, type Anchor, type CropSettings } from './lib/crop.ts'
 import type { ModelProgress } from './lib/aiBackground.ts'
 import { cancelAll, encodeToWebp, onModelProgress, WORKER_COUNT } from './lib/encoder.ts'
 import type { ImageKind } from './lib/imageFiles.ts'
-import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
+import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile, type OutputTarget } from './lib/output.ts'
 import { outputFileName, resolveName, withSizeSuffix, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
 import { scanSource, type Source } from './lib/pickers.ts'
 import { BUILTIN_PRESETS, DEFAULT_SETTINGS, loadUserPresets, saveUserPresets, type Preset } from './lib/presets.ts'
@@ -13,6 +13,7 @@ import { targetSizes, type ResizeSettings } from './lib/resize.ts'
 import type { TrimSettings } from './lib/trim.ts'
 import type { BackgroundResult, ConvertOptions } from './workers/encode.worker.ts'
 import { createThumbnail } from './lib/thumbnail.ts'
+import type { ZipEntry } from './lib/zip.ts'
 
 /** 이 이미지에만 적용하는 설정 (S4, F4-3) */
 export interface ImageOverrides {
@@ -74,6 +75,10 @@ export interface Batch {
   ids: string[]
   results: Record<string, ItemResult>
   outputLabel: string
+  /** ZIP으로 내려받을 때의 파일 이름. 폴더에 저장하면 없다. (F1-8) */
+  zipFileName?: string
+  /** ZIP을 한 번이라도 내려받았으면 true */
+  zipDownloaded?: boolean
   startedAt: number
   finishedAt?: number
   /** 취소를 눌렀으면 true */
@@ -113,6 +118,8 @@ interface AppState {
   /** 처리 중인 작업을 멈춘다. 이미 저장한 파일은 그대로 둔다. (AC-9) */
   cancelBatch(): void
   closeBatch(): void
+  /** 처리 결과를 ZIP으로 내려받는다. */
+  downloadZip(): Promise<void>
 }
 
 export function backgroundNote(result: BackgroundResult): string {
@@ -151,6 +158,9 @@ export function convertOptions(settings: Settings, item: Pick<ImageItem, 'kind' 
 
 /** 썸네일을 동시에 만드는 개수. 큰 이미지를 한꺼번에 디코딩해 메모리가 부족해지는 것을 막는다. */
 const THUMBNAIL_CONCURRENCY = 3
+
+/** ZIP으로 내려받을 결과 파일. 크기가 커서 상태에 넣지 않고 따로 둔다. */
+let zipEntries: ZipEntry[] = []
 
 // 다른 폴더를 다시 불러오면 이전 썸네일 작업의 결과를 버리기 위한 번호
 let loadId = 0
@@ -271,7 +281,7 @@ export const useAppStore = create<AppState>()((set, get) => {
       if (!source || targets.length === 0) return
 
       // 권한 요청은 클릭 직후여야 하므로 다른 작업보다 먼저 한다.
-      let target
+      let target: OutputTarget | null
       try {
         target = await resolveOutputTarget(source)
       } catch (error) {
@@ -286,6 +296,7 @@ export const useAppStore = create<AppState>()((set, get) => {
           ids: targets.map((item) => item.id),
           results: Object.fromEntries(targets.map((item) => [item.id, { status: 'waiting' }])),
           outputLabel: target.label,
+          zipFileName: target.kind === 'zip' ? target.fileName : undefined,
           startedAt: Date.now(),
         },
       })
@@ -295,16 +306,24 @@ export const useAppStore = create<AppState>()((set, get) => {
         set((s) => (s.batch ? { batch: { ...s.batch, modelProgress: downloading ? progress : undefined } } : {}))
       })
 
-      // 하위 폴더별로 폴더 핸들과 이름 목록을 한 번만 읽는다.
-      const dirs = new Map<string, Promise<{ handle: FileSystemDirectoryHandle; existing: Set<string>; produced: Set<string> }>>()
+      // 하위 폴더별로 폴더 핸들과 이름 목록을 한 번만 읽는다. ZIP은 비어 있는 상태에서 시작한다.
+      zipEntries = []
+      const output = target
+      const dirs = new Map<
+        string,
+        Promise<{ handle: FileSystemDirectoryHandle | null; existing: Set<string>; produced: Set<string> }>
+      >()
       function dirFor(path: string) {
         let dir = dirs.get(path)
         if (!dir) {
-          dir = openSubdirectory(target!.root, path).then(async (handle) => ({
-            handle,
-            existing: await listFileNames(handle),
-            produced: new Set<string>(),
-          }))
+          dir =
+            output.kind === 'zip'
+              ? Promise.resolve({ handle: null, existing: new Set<string>(), produced: new Set<string>() })
+              : openSubdirectory(output.root, path).then(async (handle) => ({
+                  handle,
+                  existing: await listFileNames(handle),
+                  produced: new Set<string>(),
+                }))
           dirs.set(path, dir)
         }
         return dir
@@ -353,7 +372,11 @@ export const useAppStore = create<AppState>()((set, get) => {
             ...options,
             targets: writes.map((p) => p.size),
           })
-          for (let i = 0; i < writes.length; i++) await writeFile(dir.handle, writes[i].decision.name, outputs[i].buffer)
+          for (let i = 0; i < writes.length; i++) {
+            const { name } = writes[i].decision
+            if (dir.handle) await writeFile(dir.handle, name, outputs[i].buffer)
+            else zipEntries.push({ path: pathOf(name), data: outputs[i].buffer })
+          }
           const skippedSizes = planned.length - writes.length
           setResult(item.id, {
             status: 'done',
@@ -392,7 +415,19 @@ export const useAppStore = create<AppState>()((set, get) => {
       cancelAll()
     },
 
-    closeBatch: () => set({ batch: null }),
+    closeBatch() {
+      zipEntries = []
+      set({ batch: null })
+    },
+
+    async downloadZip() {
+      const { batch } = get()
+      if (!batch?.zipFileName || zipEntries.length === 0) return
+      // JSZip은 ZIP으로 내려받을 때만 불러온다.
+      const { createZip, downloadBlob } = await import('./lib/zip.ts')
+      downloadBlob(await createZip(zipEntries), batch.zipFileName)
+      set((s) => (s.batch ? { batch: { ...s.batch, zipDownloaded: true } } : {}))
+    },
 
     open: (source) => load(source, get().recursive),
 

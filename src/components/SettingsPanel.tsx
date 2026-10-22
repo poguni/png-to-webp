@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { BackgroundMode, BackgroundSettings } from '../lib/background.ts'
 import { RATIO_PRESETS, type Anchor, type CropSettings, type RatioPreset } from '../lib/crop.ts'
 import { OUTPUT_DIR } from '../lib/imageFiles.ts'
+import { canWriteFolders } from '../lib/output.ts'
 import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outputNames.ts'
 import { SIZE_PRESETS, targetSize, type FitMode, type ResizeSettings, type SizePreset } from '../lib/resize.ts'
 import type { PaddingUnit, TrimSettings } from '../lib/trim.ts'
@@ -128,7 +129,11 @@ export default function SettingsPanel() {
         <div className="flex justify-between gap-3 text-xs">
           <span className="text-muted">저장 위치</span>
           <span className="truncate text-right font-mono">
-            {source?.kind === 'directory' ? `${source.name}/${OUTPUT_DIR}` : '처리할 때 고릅니다'}
+            {!canWriteFolders()
+              ? 'ZIP 파일로 내려받기'
+              : source?.kind === 'directory'
+                ? `${source.name}/${OUTPUT_DIR}`
+                : '처리할 때 고릅니다'}
           </span>
         </div>
 

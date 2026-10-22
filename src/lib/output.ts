@@ -1,19 +1,34 @@
 import { OUTPUT_DIR } from './imageFiles.ts'
 import type { Source } from './pickers.ts'
 
-export interface OutputTarget {
-  root: FileSystemDirectoryHandle
-  /** 화면에 보여 줄 저장 위치. 예: `sprites/output` */
-  label: string
+export type OutputTarget =
+  | {
+      kind: 'folder'
+      root: FileSystemDirectoryHandle
+      /** 화면에 보여 줄 저장 위치. 예: `sprites/output` */
+      label: string
+    }
+  /** 폴더에 바로 쓸 수 없는 브라우저는 결과를 ZIP으로 내려받는다. (F1-8) */
+  | { kind: 'zip'; label: string; fileName: string }
+
+/** 폴더에 바로 저장할 수 있는 브라우저인지. Firefox와 Safari는 ZIP으로 내려받는다. */
+export function canWriteFolders(): boolean {
+  return typeof window.showDirectoryPicker === 'function'
 }
 
 /**
- * 결과를 저장할 폴더를 정한다. 사용자의 클릭 직후에 불러야 권한 요청 창이 뜬다.
+ * 결과를 저장할 곳을 정한다. 사용자의 클릭 직후에 불러야 권한 요청 창이 뜬다.
  * - 폴더를 불러온 경우: 그 폴더 안의 `output/` (F7-1)
  * - 파일을 불러온 경우: 저장할 폴더를 고르게 한다
+ * - 폴더에 쓸 수 없는 브라우저: ZIP 파일
  * 사용자가 취소하면 null.
  */
 export async function resolveOutputTarget(source: Source): Promise<OutputTarget | null> {
+  if (!canWriteFolders()) {
+    const base = source.kind === 'files' && source.files[0]?.webkitRelativePath ? source.name : 'webp'
+    return { kind: 'zip', label: 'ZIP 파일', fileName: `${base}-${OUTPUT_DIR}.zip` }
+  }
+
   if (source.kind === 'directory') {
     const { handle } = source
     const mode = { mode: 'readwrite' } as const
@@ -23,15 +38,12 @@ export async function resolveOutputTarget(source: Source): Promise<OutputTarget 
       }
     }
     const root = await handle.getDirectoryHandle(OUTPUT_DIR, { create: true })
-    return { root, label: `${handle.name}/${OUTPUT_DIR}` }
+    return { kind: 'folder', root, label: `${handle.name}/${OUTPUT_DIR}` }
   }
 
-  if (!window.showDirectoryPicker) {
-    throw new Error('이 브라우저는 폴더에 바로 저장할 수 없습니다. Chrome이나 Edge를 사용해 주세요.')
-  }
   try {
-    const root = await window.showDirectoryPicker({ id: 'pngtowebp-output', mode: 'readwrite' })
-    return { root, label: root.name }
+    const root = await window.showDirectoryPicker!({ id: 'pngtowebp-output', mode: 'readwrite' })
+    return { kind: 'folder', root, label: root.name }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return null
     throw error
