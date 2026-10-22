@@ -151,3 +151,40 @@ describe('removeBackground', () => {
     expect([...redCircle.data]).toEqual(before)
   })
 })
+
+describe('removeBackground 마술봉', () => {
+  // 흰 배경 위의 빨간 고리. 고리 안쪽(반지름 8 안)은 바깥과 이어지지 않은 흰색이다.
+  const ring = image(64, 64, (x, y) => (inCircle(x, y, 32, 32, 20) && !inCircle(x, y, 32, 32, 8) ? RED : WHITE))
+  const white: RGB[] = [[255, 255, 255]]
+
+  it('점을 찍지 않으면 안쪽에 갇힌 배경은 남는다', () => {
+    const result = removeBackground(ring, white, 10, 0)
+    expect(pixel(result, 0, 0)[3]).toBe(0)
+    expect(pixel(result, 32, 32)[3]).toBe(255)
+  })
+
+  it('안쪽에 찍은 점과 이어진 같은 색 영역을 지운다', () => {
+    const result = removeBackground(ring, white, 10, 1, [{ x: 32, y: 32 }])
+    expect(pixel(result, 32, 32)[3]).toBe(0)
+    expect(pixel(result, 32, 20)[3]).toBe(255)
+    expect(pixel(result, 0, 0)[3]).toBe(0)
+  })
+
+  it('배경 색 없이 마술봉 영역만 지울 수 있다', () => {
+    const result = removeBackground(ring, [], 10, 0, [{ x: 32, y: 32 }])
+    expect(pixel(result, 32, 32)[3]).toBe(0)
+    expect(pixel(result, 0, 0)[3]).toBe(255)
+  })
+
+  it('이미 투명한 곳을 건너 다른 영역으로 번지지 않는다', () => {
+    // 왼쪽 절반은 투명, 오른쪽 절반은 흰색. 가운데에 투명한 줄이 흰 영역 둘을 나눈다.
+    const split = image(20, 10, (x) => (x < 5 || x === 12 ? [0, 0, 0, 0] : WHITE))
+    const result = removeBackground(split, [], 10, 0, [{ x: 8, y: 5 }])
+    expect(pixel(result, 8, 5)[3]).toBe(0)
+    expect(pixel(result, 15, 5)[3]).toBe(255)
+  })
+
+  it('이미지 밖이나 투명한 점은 무시한다', () => {
+    expect(removeBackground(ring, [], 10, 0, [{ x: 100, y: 5 }])).toBe(ring)
+  })
+})

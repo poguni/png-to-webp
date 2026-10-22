@@ -7,6 +7,7 @@ import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outpu
 import { SIZE_PRESETS, targetSize, type FitMode, type ResizeSettings, type SizePreset } from '../lib/resize.ts'
 import type { PaddingUnit, TrimSettings } from '../lib/trim.ts'
 import { useAppStore } from '../store.ts'
+import { WandIcon } from './icons.tsx'
 
 /** 품질 프리셋 (F6-5). value가 null이면 무손실 */
 const QUALITY_PRESETS: { label: string; value: number | null }[] = [
@@ -261,6 +262,15 @@ function BackgroundSection() {
           ))}
         </div>
         <p className="m-0 text-xs text-subtle">{BACKGROUND_MODES.find((m) => m.value === background.mode)?.hint}</p>
+        {background.mode !== 'ai' && (
+          <p className="m-0 flex gap-1.5 rounded-lg bg-[#1d2414] px-2.5 py-2 text-xs text-muted">
+            <WandIcon width="14" height="14" className="mt-px shrink-0 text-accent" />
+            <span>
+              피사체 안쪽에 갇힌 배경(예: 다리 사이)은 가장자리와 이어지지 않아 남습니다. 미리보기의{' '}
+              <b className="font-medium text-accent">마술봉</b>으로 클릭해 지우세요.
+            </span>
+          </p>
+        )}
 
         <label className={`flex flex-col gap-1.5 text-xs text-muted ${colorOptions || !enabled ? '' : 'opacity-50'}`}>
           <span className="flex justify-between">

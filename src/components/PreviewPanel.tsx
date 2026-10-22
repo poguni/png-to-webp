@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { useElementSize } from '../hooks/useElementSize.ts'
 import { useResultPreview } from '../hooks/useResultPreview.ts'
 import type { BackgroundMode } from '../lib/background.ts'
@@ -7,9 +7,10 @@ import { formatBytes, formatSaving } from '../lib/format.ts'
 import { cropInSource, cropOverride, resultPlacement } from '../lib/preview.ts'
 import { resizePlan } from '../lib/resize.ts'
 import { convertOptions, useAppStore, type ImageOverrides } from '../store.ts'
-import { AlertIcon } from './icons.tsx'
+import { AlertIcon, WandIcon } from './icons.tsx'
 
-type ViewMode = 'compare' | 'original' | 'result'
+/** wand: 마술봉. 결과를 원본 자리에 겹쳐 보여 주고, 클릭한 곳의 배경을 지운다. */
+type ViewMode = 'compare' | 'original' | 'result' | 'wand'
 type Backdrop = 'checker' | 'white' | 'black'
 
 const VIEW_MODES: { value: ViewMode; label: string }[] = [
@@ -42,12 +43,21 @@ export default function PreviewPanel() {
   const [mode, setMode] = useState<ViewMode>('compare')
   const [backdrop, setBackdrop] = useState<Backdrop>('checker')
   const [split, setSplit] = useState(0.5)
+  const wandPoints = item?.overrides?.wandPoints ?? []
   const drag = useRef<{ kind: 'move' | 'resize'; x: number; y: number; start: Rect } | null>(null)
   const file = item?.file
   const ready = Boolean(item?.width)
   const imgRef = useRef<HTMLImageElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const frame = useElementSize(frameRef)
+
+  // 마술봉은 Esc로 끈다.
+  useEffect(() => {
+    if (mode !== 'wand') return
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && setMode('compare')
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mode])
 
   // 원본을 그대로 보여 준다. 다른 이미지를 고르면 이전 주소를 해제한다.
   useEffect(() => {
@@ -122,6 +132,20 @@ export default function PreviewPanel() {
   // 결과만 볼 때는 결과 크기에 맞추고, 그 밖에는 원본 크기에 맞춘다. 작은 이미지는 키우지 않는다.
   const shown = mode === 'result' && final ? final : { width, height }
   const scale = ready && frame.width > 0 ? Math.min(frame.width / shown.width, frame.height / shown.height, 1) : 0
+  // 비교와 마술봉은 원본 위에 결과를 겹친다. 마술봉은 결과만 보이게 한다.
+  const layered = mode === 'compare' || mode === 'wand'
+  const shownSplit = mode === 'wand' ? 0 : split
+
+  function addWandPoint(e: MouseEvent<HTMLDivElement>) {
+    const box = e.currentTarget.getBoundingClientRect()
+    const x = Math.floor((e.clientX - box.left) / scale)
+    const y = Math.floor((e.clientY - box.top) / scale)
+    if (x < 0 || y < 0 || x >= width || y >= height) return
+    setOverride({ wandPoints: [...wandPoints, { x, y }] })
+  }
+
+  const undoWandPoint = () => setOverride({ wandPoints: wandPoints.length > 1 ? wandPoints.slice(0, -1) : undefined })
+  const clearWandPoints = () => setOverride({ wandPoints: undefined })
 
   function moveSplit(e: PointerEvent<HTMLDivElement>) {
     const box = e.currentTarget.getBoundingClientRect()
@@ -161,6 +185,28 @@ export default function PreviewPanel() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          aria-pressed={mode === 'wand'}
+          disabled={!ready || Boolean(item.error)}
+          onClick={() => setMode(mode === 'wand' ? 'compare' : 'wand')}
+          title="지워지지 않고 남은 배경을 클릭해서 지웁니다"
+          className={`flex h-[38px] items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium disabled:opacity-40 ${
+            mode === 'wand'
+              ? 'border-accent bg-accent text-ground'
+              : 'border-accent/60 bg-[#1d2414] text-accent hover:border-accent'
+          }`}
+        >
+          <WandIcon />
+          마술봉
+          {wandPoints.length > 0 && (
+            <span
+              className={`rounded-full px-1.5 font-mono text-[11px] ${mode === 'wand' ? 'bg-ground/20' : 'bg-accent text-ground'}`}
+            >
+              {wandPoints.length}
+            </span>
+          )}
+        </button>
         <h2 className="m-0 text-[13px] font-medium">{item.name}</h2>
         {item.id !== item.name && <span className="font-mono text-xs text-subtle">{item.id}</span>}
         <div className="flex-1" />
@@ -180,6 +226,30 @@ export default function PreviewPanel() {
           ))}
         </div>
       </div>
+
+      {/* 마술봉 사용법과 되돌리기. 이미지를 가리지 않도록 미리보기 위에 둔다. */}
+      {mode === 'wand' && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-accent/50 bg-[#1d2414] px-3.5 py-2 text-xs" role="status">
+          <WandIcon className="shrink-0 text-accent" />
+          <span>
+            지워지지 않고 남은 배경을 <b className="text-accent">클릭</b>하세요. 클릭한 곳과 이어진 같은 색 영역을 지웁니다.
+          </span>
+          <span className="text-muted">
+            {wandPoints.length > 0 ? `${wandPoints.length}곳 선택` : '아직 선택 없음'} · 허용 오차 {settings.background.tolerance}
+          </span>
+          <span className="ml-auto flex gap-1.5">
+            <button type="button" onClick={undoWandPoint} disabled={wandPoints.length === 0} className={`${smallButton} disabled:opacity-40`}>
+              되돌리기
+            </button>
+            <button type="button" onClick={clearWandPoints} disabled={wandPoints.length === 0} className={`${smallButton} disabled:opacity-40`}>
+              모두 지우기
+            </button>
+            <button type="button" onClick={() => setMode('compare')} className="h-8 rounded-lg bg-accent px-3 text-xs font-bold text-ground">
+              완료
+            </button>
+          </span>
+        </div>
+      )}
 
       <div className={`${backdropClass} relative flex min-h-[360px] flex-1 overflow-hidden rounded-[14px] border border-line p-6`}>
         <div ref={frameRef} className="flex min-w-0 flex-1 items-center justify-center">
@@ -203,8 +273,11 @@ export default function PreviewPanel() {
             )
           ) : (
             <div
-              className={`relative overflow-hidden ${mode === 'compare' ? 'cursor-ew-resize touch-none select-none' : ''}`}
+              className={`relative overflow-hidden ${
+                mode === 'compare' ? 'cursor-ew-resize touch-none select-none' : mode === 'wand' ? 'cursor-crosshair select-none' : ''
+              }`}
               style={{ width: Math.round(width * scale), height: Math.round(height * scale) }}
+              onClick={mode === 'wand' ? addWandPoint : undefined}
               onPointerDown={
                 mode === 'compare'
                   ? (e) => {
@@ -221,7 +294,7 @@ export default function PreviewPanel() {
                 alt={`${item.name} 원본`}
                 className="block size-full"
                 draggable={false}
-                style={mode === 'compare' ? { clipPath: `inset(0 ${(1 - split) * 100}% 0 0)` } : undefined}
+                style={layered ? { clipPath: `inset(0 ${(1 - shownSplit) * 100}% 0 0)` } : undefined}
               />
               {mode === 'original' && outlined && rect && (
                 <div
@@ -252,11 +325,11 @@ export default function PreviewPanel() {
                   )}
                 </div>
               )}
-              {mode === 'compare' && (
+              {layered && (
                 <>
                   <div
                     className={`${backdropClass} absolute inset-0 overflow-hidden`}
-                    style={{ clipPath: `inset(0 0 0 ${split * 100}%)` }}
+                    style={{ clipPath: `inset(0 0 0 ${shownSplit * 100}%)` }}
                   >
                     {result && placement ? (
                       <img
@@ -277,6 +350,21 @@ export default function PreviewPanel() {
                       </div>
                     )}
                   </div>
+                  {mode === 'wand' &&
+                    wandPoints.map((point, i) => (
+                      <span
+                        key={i}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute -mt-2.5 -ml-2.5 flex size-5 items-center justify-center rounded-full border-2 border-ground bg-accent font-mono text-[10px] font-bold text-ground shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+                        style={{ left: (point.x + 0.5) * scale, top: (point.y + 0.5) * scale }}
+                      >
+                        {i + 1}
+                      </span>
+                    ))}
+                </>
+              )}
+              {mode === 'compare' && (
+                <>
                   <div className="pointer-events-none absolute inset-y-0 -ml-px w-0.5 bg-accent" style={{ left: `${split * 100}%` }} />
                   <div
                     role="slider"
@@ -301,7 +389,7 @@ export default function PreviewPanel() {
         </div>
         {mode !== 'result' && (
           <span className="absolute top-3.5 left-3.5 rounded-md bg-ground/80 px-2.5 py-1 text-xs">
-            원본 · {item.kind}
+            {mode === 'wand' ? '마술봉 · 결과에서 남은 배경을 클릭' : `원본 · ${item.kind}`}
             {mode === 'original' && outlined && (canDragCrop ? ' · 끌어서 옮기기, 모서리로 크기 조절' : ' · 결과 영역')}
           </span>
         )}
@@ -350,6 +438,25 @@ export default function PreviewPanel() {
             </button>
           )}
         </span>
+        <span className="flex items-center gap-2">
+          마술봉
+          {wandPoints.length > 0 ? (
+            <>
+              <span className="text-accent">{wandPoints.length}곳 지움</span>
+              <button type="button" onClick={clearWandPoints} className={smallButton}>
+                모두 지우기
+              </button>
+            </>
+          ) : (
+            <span className="text-subtle">안쪽에 남은 배경(예: 다리 사이)을 클릭해서 지웁니다</span>
+          )}
+          {mode !== 'wand' && (
+            <button type="button" onClick={() => setMode('wand')} className={`${smallButton} flex items-center gap-1`}>
+              <WandIcon width="13" height="13" className="text-accent" />
+              {wandPoints.length > 0 ? '더 지우기' : '마술봉 켜기'}
+            </button>
+          )}
+        </span>
       </div>
 
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
@@ -368,7 +475,10 @@ export default function PreviewPanel() {
           )}
         </InfoCard>
         <InfoCard label="배경 제거">
-          <span className="text-base font-medium">{result ? (result.note?.replace(/^배경 제거: /, '') ?? '사용 안 함') : '—'}</span>
+          <span className="text-base font-medium">
+            {result ? (result.note?.replace(/^배경 제거: /, '') ?? '사용 안 함') : '—'}
+            {result && result.options.wand && ` + 마술봉 ${result.options.wand.points.length}곳`}
+          </span>
         </InfoCard>
         <InfoCard label="처리 시간">
           <span className="font-mono text-lg font-medium">{result ? `${(result.ms / 1000).toFixed(1)}초` : '—'}</span>

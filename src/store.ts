@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { BackgroundMode, BackgroundSettings } from './lib/background.ts'
+import type { BackgroundMode, BackgroundSettings, Point } from './lib/background.ts'
 import { forEachLimited } from './lib/concurrency.ts'
 import { ratioOf, type Anchor, type CropSettings } from './lib/crop.ts'
 import type { ModelProgress } from './lib/aiBackground.ts'
@@ -21,6 +21,8 @@ export interface ImageOverrides {
   background?: BackgroundMode | 'off'
   /** 자르기 위치와 크기. 비율을 정했을 때만 쓴다. */
   crop?: { anchor: Anchor; scale: number }
+  /** 마술봉으로 찍은 점(원본 픽셀 좌표). 안쪽에 갇힌 배경을 지운다. */
+  wandPoints?: Point[]
 }
 
 export interface ImageItem {
@@ -141,6 +143,10 @@ export function convertOptions(settings: Settings, item: Pick<ImageItem, 'kind' 
   return {
     background: removeBg
       ? { mode: mode && mode !== 'off' ? mode : bg.mode, tolerance: bg.tolerance, feather: bg.feather }
+      : null,
+    // 마술봉의 허용 오차와 경계 다듬기는 배경 제거 설정 값을 따른다.
+    wand: item.overrides?.wandPoints?.length
+      ? { points: item.overrides.wandPoints, tolerance: bg.tolerance, feather: bg.feather }
       : null,
     trim: settings.trim.enabled ? { padding: settings.trim.padding, unit: settings.trim.unit } : null,
     ratio,

@@ -16,6 +16,12 @@ export interface BackgroundSettings {
 
 export type RGB = [number, number, number]
 
+/** 이미지 안의 픽셀 위치 */
+export interface Point {
+  x: number
+  y: number
+}
+
 export type BackgroundKind = 'solid' | 'checker' | 'complex' | 'transparent'
 
 export interface Detection {
@@ -120,43 +126,75 @@ export function shouldUseAi(detection: Detection, mode: BackgroundMode): boolean
 /**
  * 가장자리와 이어진 배경색 영역을 투명하게 만든다. (F2 단색·체커보드 제거)
  * 안쪽에 갇힌 같은 색(예: 캐릭터 눈의 흰자)은 남긴다.
+ * seeds는 마술봉으로 찍은 점이다. 안쪽에 갇힌 배경(예: 다리 사이)도 그 점과 이어진 같은 색 영역은 지운다.
+ * colors가 비어 있으면 마술봉 영역만 지운다.
  * feather > 0이면 경계 픽셀이 배경과 섞인 비율을 계산해 반투명하게 만들고, 섞인 배경색을 빼낸다. (F2-1)
  */
-export function removeBackground(image: Pixels, colors: RGB[], tolerance: number, feather: number): Pixels {
+export function removeBackground(
+  image: Pixels,
+  colors: RGB[],
+  tolerance: number,
+  feather: number,
+  seeds: readonly Point[] = [],
+): Pixels {
   const { width, height } = image
   const src = image.data
   const total = width * height
 
+  // 마술봉으로 찍은 점의 색. 이미지 밖이거나 이미 투명한 점은 쓰지 않는다.
+  const seedStarts: { index: number; color: RGB }[] = []
+  for (const { x, y } of seeds) {
+    if (x < 0 || y < 0 || x >= width || y >= height) continue
+    const index = Math.floor(y) * width + Math.floor(x)
+    const p = index * 4
+    if (src[p + 3] >= 16) seedStarts.push({ index, color: [src[p], src[p + 1], src[p + 2]] })
+  }
+  // 경계를 다듬을 때 쓰는 배경색 후보
+  const palette = [...colors, ...seedStarts.map((s) => s.color)]
+  if (palette.length === 0) return image
+
   const nearest = (p: number): { distance: number; color: RGB } => {
-    let best = { distance: Infinity, color: colors[0] }
-    for (const color of colors) {
+    let best = { distance: Infinity, color: palette[0] }
+    for (const color of palette) {
       const distance = colorDistance(src[p], src[p + 1], src[p + 2], color)
       if (distance < best.distance) best = { distance, color }
     }
     return best
   }
 
-  // 1) 가장자리에서 시작하는 플러드 필 (상하좌우 4방향)
+  // 1) 플러드 필 (상하좌우 4방향)
   const removed = new Uint8Array(total)
   const queue = new Int32Array(total)
   let head = 0
   let tail = 0
-  const visit = (i: number) => {
-    if (removed[i]) return
-    const p = i * 4
-    if (src[p + 3] < 16 || nearest(p).distance <= tolerance) {
+  const fill = (starts: Iterable<number>, matches: (p: number) => boolean) => {
+    const visit = (i: number) => {
+      if (removed[i] || !matches(i * 4)) return
       removed[i] = 1
       queue[tail++] = i
     }
+    for (const i of starts) visit(i)
+    while (head < tail) {
+      const i = queue[head++]
+      const x = i % width
+      if (x > 0) visit(i - 1)
+      if (x < width - 1) visit(i + 1)
+      if (i >= width) visit(i - width)
+      if (i < total - width) visit(i + width)
+    }
   }
-  for (const i of borderIndexes(width, height)) visit(i)
-  while (head < tail) {
-    const i = queue[head++]
-    const x = i % width
-    if (x > 0) visit(i - 1)
-    if (x < width - 1) visit(i + 1)
-    if (i >= width) visit(i - width)
-    if (i < total - width) visit(i + width)
+  // 가장자리에서 시작해 배경색과 이미 투명한 픽셀을 따라 퍼진다.
+  if (colors.length > 0) {
+    const isBackground = (p: number) => {
+      for (const color of colors) if (colorDistance(src[p], src[p + 1], src[p + 2], color) <= tolerance) return true
+      return false
+    }
+    fill(borderIndexes(width, height), (p) => src[p + 3] < 16 || isBackground(p))
+  }
+  // 마술봉 점에서 시작해 그 점의 색과 비슷한 픽셀만 따라 퍼진다. 투명한 곳으로는 건너가지 않으므로,
+  // 바깥 배경과 맞닿은 피사체의 밝은 부분까지 번지지 않는다.
+  for (const { index, color } of seedStarts) {
+    fill([index], (p) => src[p + 3] >= 16 && colorDistance(src[p], src[p + 1], src[p + 2], color) <= tolerance)
   }
 
   const out = new Uint8ClampedArray(src)

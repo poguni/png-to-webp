@@ -9,6 +9,7 @@ import {
   shouldUseAi,
   type BackgroundKind,
   type BackgroundMode,
+  type Point,
 } from '../lib/background.ts'
 import { cropPixels, cropRect, type Anchor, type Pixels, type Rect } from '../lib/crop.ts'
 import type { ImageKind } from '../lib/imageFiles.ts'
@@ -19,6 +20,8 @@ import { trimPixels, type PaddingUnit } from '../lib/trim.ts'
 export interface ConvertOptions {
   /** null이면 배경을 지우지 않는다. */
   background: { mode: BackgroundMode; tolerance: number; feather: number } | null
+  /** 마술봉으로 찍은 점(원본 픽셀 좌표). 그 점과 이어진 같은 색 영역을 지운다. null이면 쓰지 않는다. */
+  wand: { points: Point[]; tolerance: number; feather: number } | null
   /** null이면 여백을 다듬지 않는다. */
   trim: { padding: number; unit: PaddingUnit } | null
   /** 자를 가로/세로 비율. null이면 자르지 않는다. */
@@ -113,7 +116,9 @@ async function background(
 
   const colors = backgroundColors(detection, mode)
   if (colors) {
-    return { image: removeBackground(image, colors, tolerance, feather), result: { kind: detection.kind, method: 'color' } }
+    // 마술봉 점도 같은 플러드 필에서 함께 지운다.
+    const cleared = removeBackground(image, colors, tolerance, feather, options.wand?.points)
+    return { image: cleared, result: { kind: detection.kind, method: 'color' } }
   }
   if (!shouldUseAi(detection, mode)) return { image, result: { kind: detection.kind, method: null } }
   if (!allowAi) return null
@@ -192,6 +197,11 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
     const response: EncodeResponse = { id, ok: false, needsAi: true }
     self.postMessage(response)
     return
+  }
+  // 색으로 지우지 않았으면(배경 제거 끔, AI, 이미 투명 등) 마술봉 영역만 따로 지운다.
+  const { wand } = options
+  if (wand && cleared.result?.method !== 'color') {
+    cleared = { ...cleared, image: removeBackground(cleared.image, [], wand.tolerance, wand.feather, wand.points) }
   }
 
   try {
