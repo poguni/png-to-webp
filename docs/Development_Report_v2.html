@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNGtoWebP 개발 보고서 v2</title>
+<style>
+  :root { --sidebar-w: 260px; --accent: #4F46E5; --text: #1f2430; --muted: #6b7280; --bg: #ffffff; --panel: #f7f7fb; --border: #e5e7eb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", "Noto Sans KR", sans-serif; color: var(--text); background: var(--bg); line-height: 1.65; }
+  .layout { display: flex; min-height: 100vh; }
+  nav.sidebar { position: sticky; top: 0; align-self: flex-start; width: var(--sidebar-w); flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 24px 16px; background: var(--panel); border-right: 1px solid var(--border); }
+  nav.sidebar h1 { font-size: 15px; margin: 0 0 4px; }
+  nav.sidebar .meta { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  nav.sidebar a { display: block; padding: 7px 10px; margin: 2px 0; font-size: 13.5px; color: var(--text); text-decoration: none; border-radius: 8px; }
+  nav.sidebar a:hover { background: #eceafd; }
+  nav.sidebar a.active { background: var(--accent); color: #fff; }
+  main { flex: 1; min-width: 0; padding: 40px 48px; max-width: 860px; }
+  main .doctitle { font-size: 28px; margin: 0 0 12px; }
+  main .docmeta { color: var(--muted); font-size: 14px; padding-left: 18px; margin: 0 0 40px; }
+  main section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  main h2 { font-size: 22px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+  main h3 { font-size: 17px; color: var(--accent); }
+  main table { border-collapse: collapse; width: 100%; margin: 12px 0; display: block; overflow-x: auto; }
+  main th, main td { border: 1px solid var(--border); padding: 8px 10px; font-size: 14px; text-align: left; vertical-align: top; }
+  main th { background: var(--panel); }
+  main code { background: #f1f1f5; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  main pre { background: #1f2430; color: #eee; padding: 14px; border-radius: 8px; overflow-x: auto; }
+  main pre code { background: none; padding: 0; color: inherit; }
+  main a { color: var(--accent); }
+  main li { margin: 4px 0; }
+  @media (max-width: 800px) {
+    .layout { flex-direction: column; }
+    nav.sidebar { position: relative; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 24px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <h1>PNGtoWebP</h1>
+    <div class="meta">개발 보고서 v2 · 2026-10-23</div>
+    <a href="#sec-1">1. 개요</a>
+    <a href="#sec-2">2. 목표 및 배경</a>
+    <a href="#sec-3">3. 주요 기능</a>
+    <a href="#sec-4">4. 기술 스택 및 아키텍처</a>
+    <a href="#sec-5">5. 개발 과정 (타임라인)</a>
+    <a href="#sec-6">6. 주요 의사결정과 이유</a>
+    <a href="#sec-7">7. 문제 해결 기록</a>
+    <a href="#sec-8">8. 보안·개인정보·성능 고려사항</a>
+    <a href="#sec-9">9. 테스트 및 검증</a>
+    <a href="#sec-10">10. 배포</a>
+    <a href="#sec-11">11. 알려진 한계</a>
+    <a href="#sec-12">12. 향후 개선 아이디어 / 업데이트 계획</a>
+    <a href="#sec-13">13. 이전 버전(v1) 이후 변경 사항</a>
+  </nav>
+  <main id="content">
+    <h1 class="doctitle">PNGtoWebP 개발 보고서 (v2)</h1>
+    <ul class="docmeta"><li>작성일: 2026-10-23</li><li>버전: v2</li><li>이전 버전: v1 (docs/Development_Report_v1.md)</li><li>대상 코드: <code>main</code> 브랜치 <code>eba160c</code> (v1.0 범위 완료 후 마술봉과 미리보기 확대·축소 추가)</li></ul>
+    <section id="sec-1">
+      <h2>1. 개요</h2>
+      <table>
+<thead><tr><th>항목</th><th>내용</th></tr></thead>
+<tbody>
+<tr><td>앱 이름</td><td>PNGtoWebP</td></tr>
+<tr><td>한 줄 소개</td><td>AI로 만든 PNG·JPG 이미지를 브라우저 안에서 배경 제거, 자르기, 크기 조절을 거쳐 WebP로 한꺼번에 바꿔 주는 웹앱</td></tr>
+<tr><td>대상 사용자</td><td>나노바나나 같은 이미지 생성 AI로 게임·앱·웹 소스를 만드는 1인 개발자와 디자이너</td></tr>
+<tr><td>개발 기간</td><td>2026-10-21 ~ 2026-10-23 (커밋 15개)</td></tr>
+<tr><td>저장소</td><td><a href="https://github.com/poguni/png-to-webp">https://github.com/poguni/png-to-webp</a></td></tr>
+<tr><td>배포 주소</td><td><a href="https://png-to-webp-topaz.vercel.app/">https://png-to-webp-topaz.vercel.app/</a></td></tr>
+<tr><td>규모</td><td>앱 코드 약 4,400줄(TypeScript/React), 테스트 약 920줄(단위 테스트 102개)</td></tr>
+</tbody></table>
+    </section>
+    <section id="sec-2">
+      <h2>2. 목표 및 배경</h2>
+      <p>이미지 생성 AI로 만든 그림을 실제 게임이나 웹에 쓰려면 매번 같은 작업을 반복해야 했다. 포토샵에서 배경을 지우고, 비율에 맞게 자르고, 크기를 줄이고, WebP로 다시 저장하는 일이다. 특히 나노바나나에 "투명 배경"을 요청하면 실제로 투명하지 않고 <strong>회색·흰색 체크무늬를 그려 넣는</strong> 경우가 많아, 이를 지우는 일이 번거로웠다.</p>
+      <p>이 앱의 핵심 가치는 세 가지다.</p>
+      <ol><li><strong>한 번 설정으로 폴더 전체 처리</strong>: 수십~수백 장을 같은 규칙으로 한꺼번에 처리한다.</li><li><strong>개인정보 보호</strong>: 이미지가 기기 밖으로 나가지 않는다. 모든 처리를 브라우저 안(WebAssembly, Web Worker)에서 한다. 네트워크 요청은 앱 파일과 AI 모델을 처음 받을 때뿐이다.</li><li><strong>원본 보존</strong>: 원본은 절대 수정하거나 지우지 않고, 결과는 같은 폴더의 <code>output/</code>에 따로 저장한다.</li></ol>
+    </section>
+    <section id="sec-3">
+      <h2>3. 주요 기능</h2>
+      <table>
+<thead><tr><th>영역</th><th>기능</th><th>PRD</th></tr></thead>
+<tbody>
+<tr><td>입력</td><td>폴더 열기, 파일 선택, 드래그 앤 드롭. PNG/JPG만 읽고 나머지는 건너뛴 개수 표시. 하위 폴더 포함 옵션, 썸네일 목록, 전체/PNG/JPG 필터</td><td>F1-1~5</td></tr>
+<tr><td>배경 제거</td><td>단색 제거, 가짜 체커보드 제거, AI 제거(@imgly/background-removal), 자동 방식 판단, 허용 오차, 경계 다듬기, JPG 적용 옵션</td><td>F2</td></tr>
+<tr><td>마술봉</td><td>피사체 안쪽에 갇혀 남은 배경(예: 새 다리 사이)을 클릭해 지움. 클릭 위치 번호 표시, 되돌리기, 모두 지우기</td><td>추가</td></tr>
+<tr><td>여백 다듬기</td><td>투명한 가장자리를 잘라 피사체에 맞추고 사방에 여백(px 또는 %) 추가</td><td>F3</td></tr>
+<tr><td>자르기</td><td>원본/16:9/9:16/4:3/3:4/1:1/사용자 지정, 3×3 자르기 위치</td><td>F4-1, F4-2</td></tr>
+<tr><td>크기 조절</td><td>크기 프리셋(64~1920), 사용자 지정, Contain/Cover/Stretch/긴 변, 확대 금지, pica 고품질 리샘플링, 여러 크기 동시 출력</td><td>F5</td></tr>
+<tr><td>WebP 압축</td><td>품질, 무손실, 알파 품질, 압축 노력도, 품질 프리셋(고화질 90/균형 80/최소 60/무손실)</td><td>F6</td></tr>
+<tr><td>출력</td><td><code>output/</code>에 하위 폴더 구조 유지, 이름 규칙(유지/소문자-하이픈, 접두사·접미사), 이름 충돌 처리(번호/덮어쓰기/건너뛰기)</td><td>F7</td></tr>
+<tr><td>미리보기</td><td>처리 전후 슬라이더 비교, 원본/결과만 보기, 투명 영역 배경(체크무늬/흰색/검은색), 용량·절감률·해상도·배경 제거 결과·처리 시간 표시, 설정 변경 시 자동 갱신</td><td>F8, F2-3</td></tr>
+<tr><td>확대·축소</td><td>맞춤~800% 확대, Ctrl(⌘)+휠로 마우스 위치 기준 확대, 스크롤과 끌어서 이동</td><td>추가</td></tr>
+<tr><td>이미지별 조정</td><td>이미지마다 배경 제거 방식 지정, 자르기 영역을 끌어 옮기고 모서리로 크기 조절, 마술봉 클릭 위치</td><td>S4, F4-3</td></tr>
+<tr><td>프리셋</td><td>설정 전체를 이름 붙여 저장·불러오기·삭제(localStorage), 기본 프리셋 4종</td><td>F9</td></tr>
+<tr><td>일괄 처리</td><td>Web Worker 병렬 처리, 진행률·남은 시간, 취소, 실패 목록과 이유</td><td>F1-6, F1-7</td></tr>
+<tr><td>대체 경로</td><td>폴더에 쓸 수 없는 브라우저(Firefox, Safari)는 ZIP으로 내려받기</td><td>F1-8</td></tr>
+</tbody></table>
+    </section>
+    <section id="sec-4">
+      <h2>4. 기술 스택 및 아키텍처</h2>
+      <h3>4.1 기술 스택</h3>
+      <table>
+<thead><tr><th>영역</th><th>선택</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>빌드/프레임워크</td><td>Vite 8 + React 19 + TypeScript</td><td>설정이 단순하고 Worker·WASM을 바로 다룰 수 있음</td></tr>
+<tr><td>스타일</td><td>Tailwind CSS 4</td><td>디자인 시안의 색과 간격을 토큰으로 옮기기 쉬움</td></tr>
+<tr><td>상태 관리</td><td>Zustand</td><td>설정, 파일 목록, 일괄 처리 상태를 하나의 스토어로 가볍게 관리</td></tr>
+<tr><td>PNG 디코딩</td><td><code>@jsquash/png</code></td><td>캔버스를 거치지 않아 반투명 픽셀 색이 바뀌지 않음</td></tr>
+<tr><td>WebP 인코딩</td><td><code>@jsquash/webp</code> (libwebp WASM)</td><td>무손실, 알파 품질, 노력도 등 libwebp 옵션을 모두 쓸 수 있음. <code>canvas.toBlob</code>으로는 불가능</td></tr>
+<tr><td>리사이즈</td><td><code>pica</code> (mks2013 필터)</td><td>고품질 축소, 투명 픽셀 색 번짐 없음</td></tr>
+<tr><td>AI 배경 제거</td><td><code>@imgly/background-removal</code> 1.7.0 (isnet_fp16)</td><td>브라우저에서 WebGPU/WASM으로 동작</td></tr>
+<tr><td>ZIP</td><td><code>JSZip</code></td><td>Firefox·Safari 대체 경로. 필요할 때만 불러옴</td></tr>
+<tr><td>테스트</td><td>Vitest, 브라우저 검증은 Playwright</td><td></td></tr>
+<tr><td>글꼴</td><td>IBM Plex Sans KR, JetBrains Mono (앱에 포함)</td><td>COEP 헤더 때문에 외부 글꼴이 막히지 않도록</td></tr>
+<tr><td>호스팅</td><td>GitHub + Vercel</td><td>COOP/COEP 헤더 설정, push 배포</td></tr>
+</tbody></table>
+      <h3>4.2 구조</h3>
+      <pre><code>화면 (React)
+ ├─ AppHeader ─ PresetControls          프리셋 선택·저장, 처리 시작
+ ├─ FileList                            파일 목록, 필터, 체크
+ ├─ PreviewPanel ─ useResultPreview     전후 비교, 확대·축소, 마술봉, 이미지별 조정
+ ├─ SettingsPanel                       배경 제거, 여백, 자르기, 크기, 압축, 출력
+ └─ ProcessingView                      진행률, 취소, 실패 목록, ZIP
+        │
+ store.ts (Zustand)  설정 → convertOptions() → 변환 옵션
+        │
+ lib/encoder.ts  Worker 풀 (코어 수 − 1, 최대 6, AI는 0번 Worker만)
+        │
+ workers/encode.worker.ts
+   디코딩 → 배경 제거(+마술봉) → 여백 다듬기 → 자르기 → 크기 조절(여러 크기) → WebP 인코딩
+        │
+ lib/output.ts  output/ 폴더 쓰기  또는  lib/zip.ts  ZIP 내려받기</code></pre>
+      <ul><li>계산 로직(자르기 영역, 크기 계획, 플러드 필, 여백, 이름 규칙, 프리셋 병합, 겹침 좌표)은 모두 <code>src/lib/</code>의 순수 함수로 두고 단위 테스트를 붙였다.</li><li>미리보기와 일괄 처리는 같은 <code>convertOptions()</code>와 같은 Worker를 쓴다. 그래서 미리보기 결과와 실제 저장 결과가 같다.</li><li>AGPL 라이브러리는 <code>src/lib/aiBackground.ts</code> 한 파일에서만 쓴다. 모델을 바꿀 때 이 파일만 고치면 된다.</li></ul>
+    </section>
+    <section id="sec-5">
+      <h2>5. 개발 과정 (타임라인)</h2>
+      <p>PRD 13.6의 커밋 계획(C1~C12)과 배포 시점(D1~D6)을 그대로 따랐다. 사용자가 커밋·push·배포를 직접 하고, Claude는 단계마다 구현, 테스트, 브라우저 검증을 마친 뒤 커밋 시점과 메시지를 알렸다.</p>
+      <table>
+<thead><tr><th>단계</th><th>날짜</th><th>커밋</th><th>내용</th><th>마일스톤</th></tr></thead>
+<tbody>
+<tr><td>C1</td><td>10-21</td><td><code>a6900fd</code></td><td>Vite·React·TS 초기 설정, <code>vercel.json</code> COOP/COEP 헤더, 글꼴 포함, 시작 화면</td><td>D1 첫 배포</td></tr>
+<tr><td>C2</td><td>10-21</td><td><code>bb71ce4</code></td><td>폴더 열기·파일 선택·드롭, 지원 형식 필터, 하위 폴더, 썸네일 목록</td><td></td></tr>
+<tr><td>C3</td><td>10-21</td><td><code>b31bfeb</code></td><td>Worker에서 WebP 변환, <code>output/</code> 저장, 이름 규칙·충돌 처리, 일괄 처리 화면</td><td><strong>M1</strong>, D2</td></tr>
+<tr><td>C4</td><td>10-22</td><td><code>596b034</code></td><td>비율 자르기, 3×3 자르기 위치, 자르기 미리보기</td><td></td></tr>
+<tr><td>C5</td><td>10-22</td><td><code>876f135</code></td><td>크기 프리셋, 맞춤 방식 4종, 확대 금지, pica 리사이즈</td><td><strong>M2</strong>, D3</td></tr>
+<tr><td>C6</td><td>10-22</td><td><code>b42f66f</code></td><td>단색·체커보드 배경 제거(플러드 필), 경계 다듬기, 자동 판단</td><td></td></tr>
+<tr><td>C7</td><td>10-22</td><td><code>02654b3</code></td><td>AI 배경 제거, 모델 진행률, WebGPU→WASM 전환</td><td><strong>M3</strong>, D4</td></tr>
+<tr><td>C8</td><td>10-22</td><td><code>1f60346</code></td><td>처리 전후 비교 슬라이더, 투명 배경 선택, 용량·해상도 카드, 자동 갱신</td><td></td></tr>
+<tr><td>C9</td><td>10-22</td><td><code>cd22fd1</code></td><td>프리셋 저장·불러오기, 기본 프리셋 4종, 무손실·알파 품질·노력도</td><td></td></tr>
+<tr><td>C10</td><td>10-22</td><td><code>76ee39b</code></td><td>여백 다듬기, 여러 크기 출력, 이미지별 배경 제거·자르기 영역 조정</td><td><strong>M4</strong>, D5</td></tr>
+<tr><td>C11</td><td>10-22</td><td><code>4248d9f</code></td><td>Web Worker 풀 병렬 처리, AI 전용 Worker, 처리 취소</td><td></td></tr>
+<tr><td>C12</td><td>10-22</td><td><code>cc7752b</code></td><td>실패 목록, ZIP 다운로드 대체 경로, 절감률 표시 버그 수정</td><td><strong>M5</strong>, D6 (v1.0.0)</td></tr>
+<tr><td>-</td><td>10-22</td><td><code>a7224ed</code></td><td>개발 보고서 v1</td><td></td></tr>
+<tr><td>추가 1</td><td>10-23</td><td><code>1a2e344</code></td><td>마술봉으로 안쪽에 남은 배경 지우기</td><td></td></tr>
+<tr><td>추가 2</td><td>10-23</td><td><code>eba160c</code></td><td>미리보기 확대·축소와 끌어서 이동</td><td></td></tr>
+</tbody></table>
+      <p>테스트 수는 2개(C1) → 26개(C3) → 48개(C5) → 69개(C7) → 80개(C9) → 95개(C10) → 97개(C12) → 102개(마술봉)로 늘었다.</p>
+      <h3>v1.0 이후 추가 작업</h3>
+      <p>사용자가 실제 이미지를 처리하다가, "자동" 모드에서 새 다리 사이처럼 <strong>피사체에 둘러싸인 흰 배경이 지워지지 않는</strong> 문제를 알려 왔다. 포토샵의 마술봉처럼 남은 곳을 직접 골라 지우는 기능이 필요했다. 해결 방법으로 ① 마술봉 클릭, ② "안쪽 배경도 지우기" 일괄 옵션(일정 크기 이상만), ③ 지우개 붓 세 가지를 비교했다. 그중 실수가 없고 구현이 간단한 ①을 먼저 만들었다. 이어서 작은 부분을 정확히 클릭할 수 있도록 미리보기 확대·축소를 요청받아 추가했다.</p>
+    </section>
+    <section id="sec-6">
+      <h2>6. 주요 의사결정과 이유</h2>
+      <table>
+<thead><tr><th>결정</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>WebP 인코더로 <code>@jsquash/webp</code> 사용</td><td>브라우저 내장 <code>canvas.toBlob(&#x27;image/webp&#x27;)</code>는 무손실, 알파 품질, 노력도를 조절할 수 없다.</td></tr>
+<tr><td>PNG는 캔버스 없이 직접 디코딩</td><td>캔버스는 프리멀티플라이드 알파 때문에 반투명 픽셀 색을 미세하게 바꾼다. 무손실 결과가 원본과 픽셀 단위로 같아야 한다(AC-6).</td></tr>
+<tr><td>COOP/COEP의 <code>credentialless</code> 사용</td><td><code>crossOriginIsolated</code>를 켜 멀티스레드 WASM을 쓰면서도, AI 모델 CDN이 막히지 않게 하기 위해서다. 글꼴은 앱에 포함했다.</td></tr>
+<tr><td>개발 서버 헤더를 <code>vercel.json</code>에서 읽기</td><td>로컬과 배포 환경의 헤더가 어긋나 생기는 문제를 막는다.</td></tr>
+<tr><td>"확대 금지"는 원본 전체가 목표 안에 들어갈 때만 적용</td><td>F5-3 문장, AC-4(1600×900 그대로), AC-5(Cover 512×512)를 모두 만족하는 유일한 해석이었다.</td></tr>
+<tr><td>배경 제거는 가장자리와 이어진 영역만 지움</td><td>캐릭터 눈의 흰자처럼 안쪽에 갇힌 같은 색을 지키기 위해서다.</td></tr>
+<tr><td>AI는 투명도(마스크)만 정하고 색은 원본 사용</td><td>모델 출력 색을 쓰면 색이 탁해진다.</td></tr>
+<tr><td>미리보기와 일괄 처리가 같은 변환 경로 공유</td><td>미리보기와 실제 결과가 달라지는 일을 원천적으로 막는다.</td></tr>
+<tr><td>비교 화면에서 결과를 "원본 좌표"로 겹침</td><td>자르기·Contain 여백·여백 다듬기가 있어도 막대 양쪽 그림이 이어지게 하려고, 결과가 원본의 어느 영역인지 계산하는 함수(<code>resultPlacement</code>, <code>cropInSource</code>)를 두었다.</td></tr>
+<tr><td>C9에 WebP 압축 옵션(F6-2~5)을 함께 구현</td><td>커밋 계획표 어디에도 없던 P0 기능이었고, "앱 아이콘 세트" 프리셋에 무손실이 필요했다. 사용자에게 범위를 확인받고 진행했다.</td></tr>
+<tr><td>게임 스프라이트 프리셋에서 1:1 자르기 제외, 확대 금지 끔</td><td>여백을 다듬은 뒤 1:1로 자르면 가로로 긴 피사체가 잘린다. 512×512 Contain이 정사각형을 만든다. 확대 금지를 켜 두면 다듬어서 작아진 스프라이트가 512로 맞춰지지 않는다.</td></tr>
+<tr><td>프리셋 불러오기는 기본값 위에 병합</td><td>나중에 새 설정이 생겨도 예전 프리셋이 깨지지 않는다(<code>completeSettings</code>).</td></tr>
+<tr><td>Worker 수 = 코어 수 − 1 (최대 6)</td><td>메인 스레드 몫을 남기고, 동시에 디코딩하는 이미지 수를 코어 수 이하로 제한한다(6장 메모리 요구사항).</td></tr>
+<tr><td>AI 모델은 Worker 하나에만</td><td>Worker마다 약 80MB 모델을 올리지 않도록, 다른 Worker는 AI가 필요하면 <code>needsAi</code>로 돌려주고 AI Worker가 다시 맡는다.</td></tr>
+<tr><td>취소는 Worker 종료로</td><td>처리 중인 변환을 기다리지 않고 즉시 멈춰 1초 기준(AC-9)을 지킨다. 변환을 마친 파일은 끝까지 저장한다.</td></tr>
+<tr><td>ZIP은 압축 없이(STORE) 묶기, JSZip은 필요할 때만 로드</td><td>WebP는 이미 압축되어 다시 압축해도 거의 줄지 않는다. 첫 로딩 크기에도 영향을 주지 않는다.</td></tr>
+<tr><td>안쪽 배경은 자동으로 지우지 않고 마술봉으로 고르게 함</td><td>다리 사이 공간과 눈 흰자는 둘 다 "안쪽에 갇힌 흰색"이라 프로그램이 구별할 수 없다. 사용자가 고르면 잘못 지울 일이 없다. 크기 기준 자동 옵션은 흰 배·흰 옷까지 지울 위험이 있어 뒤로 미뤘다.</td></tr>
+<tr><td>마술봉은 기존 플러드 필에 시작점을 더하는 방식</td><td>새 알고리즘 없이 <code>removeBackground</code>에 클릭한 점(seeds)을 추가했다. "경계 다듬기"가 그대로 적용되어 흰 테두리가 남지 않는다.</td></tr>
+<tr><td>마술봉은 클릭한 픽셀의 색을 기준으로 지움</td><td>포토샵 마술봉과 같은 방식이다. 배경색과 조금 다른 얼룩이나, 이미 투명한 PNG 안의 흰 영역에도 쓸 수 있다.</td></tr>
+<tr><td>마술봉은 이미 투명한 곳을 건너 번지지 않음</td><td>가장자리 채우기는 투명한 픽셀을 따라 퍼지지만, 마술봉도 그렇게 하면 바깥 배경과 맞닿은 피사체의 밝은 부분까지 지워진다.</td></tr>
+<tr><td>마술봉은 배경 제거를 끄거나 AI 모드여도 적용</td><td>색으로 지우지 않은 경우에는 마술봉 영역만 따로 한 번 더 지운다. 허용 오차와 경계 다듬기는 배경 제거 설정 값을 따른다.</td></tr>
+<tr><td>마술봉 클릭 위치는 원본 픽셀 좌표로 이미지별 저장</td><td>배경 제거는 자르기·크기 조절 전에 하므로 원본 좌표가 맞다. 미리보기와 일괄 처리가 같은 값을 쓴다.</td></tr>
+<tr><td>마술봉 화면은 "결과를 원본 자리에 겹친" 모습</td><td>원본에서는 흰 배경과 남은 흰 영역이 똑같이 보여 어디를 눌러야 할지 알 수 없다. 비교 화면의 겹침 계산을 그대로 써서 결과 위를 클릭하게 했다.</td></tr>
+<tr><td>마술봉을 여러 곳에서 알림</td><td>미리보기 툴바의 라임색 버튼, "이 이미지만" 줄의 켜기 버튼, 배경 제거 설정의 안내 문구. 사용자가 기능이 있다는 것을 알아보기 쉽게 해 달라고 요청했다.</td></tr>
+<tr><td>확대 퍼센트는 원본 픽셀 기준</td><td>"100%"가 실제 픽셀 크기라는 익숙한 의미를 따른다. 맞춤 크기가 19%처럼 표시된다.</td></tr>
+<tr><td>Ctrl(⌘)+휠은 마우스 위치 기준 확대</td><td>작은 곳을 노리고 휠을 돌리면 그곳이 제자리에서 커져야 한다. 브라우저 확대를 막기 위해 passive가 아닌 휠 리스너를 쓴다.</td></tr>
+<tr><td>확대 중에는 이미지 둘레에 칸 크기만큼 여백</td><td>이미지가 칸보다 작을 때 가운데에 고정되면 기준점을 유지할 수 없다. 이미지가 칸 밖으로 다 나가지 않도록 40px은 남긴다.</td></tr>
+<tr><td>마술봉·결과 보기에서는 끌어서 이동, 조금만 움직이면 클릭</td><td>클릭과 이동을 같은 마우스 버튼으로 하되, 5px 넘게 움직였을 때만 이동으로 본다.</td></tr>
+<tr><td>확대 배율은 이미지별 상태로 보관</td><td>다른 이미지를 고르면 effect 없이 자연스럽게 맞춤 크기로 돌아간다(렌더링 중 ref 쓰기와 effect 안 setState 경고를 없애기 위한 구조).</td></tr>
+</tbody></table>
+    </section>
+    <section id="sec-7">
+      <h2>7. 문제 해결 기록</h2>
+      <table>
+<thead><tr><th>문제</th><th>원인</th><th>해결</th></tr></thead>
+<tbody>
+<tr><td>AI 배경 제거가 처음에 모두 실패</td><td><code>@imgly/background-removal</code> 1.7.0이 타입 정의와 달리 <code>ImageData</code>를 변환하지 못함</td><td>라이브러리가 지원하는 원시 RGBA 형식(<code>image/x-rgba8</code>) Blob으로 넘김. 캔버스를 거치지 않아 색 손실도 없음</td></tr>
+<tr><td>낮은 창에서 하단 바가 내용을 덮음 (C2)</td><td>레이아웃 높이 계산</td><td>넓은 화면에서 패널마다 따로 스크롤</td></tr>
+<tr><td>설정 패널이 길어지면 미리보기가 밀림 (C5)</td><td>페이지 전체가 늘어남</td><td>패널 안에서만 스크롤</td></tr>
+<tr><td>비교 화면 결과 쪽 가장자리에 1px 회색 선 (C8)</td><td>겹친 두 이미지 경계의 안티앨리어싱이 섞임</td><td>원본도 막대 왼쪽만 보이도록 잘라 아래에 아무것도 없게 함. 상자 크기를 정수로 맞춤</td></tr>
+<tr><td>넓은 창에서 좁은 창으로 바꾸면 이미지가 안 줄어듦 (C8)</td><td>flex 항목의 <code>min-width: auto</code>가 내용 크기에 고정됨</td><td>측정용 요소에 <code>min-w-0</code></td></tr>
+<tr><td>개발 서버에서 AI를 처음 쓰면 화면이 초기화됨</td><td>Vite가 AI 라이브러리를 처음 만날 때 의존성 재최적화로 새로고침</td><td>개발 서버 전용 현상이라 앱 코드는 그대로 둠</td></tr>
+<tr><td>여백 단위 선택 상자 때문에 "여백" 글자가 한 글자씩 줄바꿈 (C10)</td><td><code>w-full</code>과 <code>w-auto</code> 클래스 충돌</td><td>너비를 150px로 고정</td></tr>
+<tr><td>게임 스프라이트 결과가 512×512가 아니라 409×209 (C10)</td><td>확대 금지 + Contain 규칙(AC-4)</td><td>프리셋에서 확대 금지를 끔. 전역 규칙은 AC-4 때문에 유지</td></tr>
+<tr><td>결과가 원본보다 크면 절감률이 "−-17%"로 표시 (C12)</td><td>부호를 고정으로 붙임</td><td><code>formatSaving()</code>으로 통일, 커지면 빨간 "+17%"와 "늘어난 용량"</td></tr>
+<tr><td>2·3번째 push 뒤 Vercel 자동 배포가 안 됨 (D2)</td><td>미확인</td><td>사용자가 수동 배포로 대응. Vercel Settings → Git의 연결 저장소와 Production Branch 확인을 권장</td></tr>
+<tr><td>"자동" 모드에서 새 다리 사이 흰 배경이 남음 (사용자 보고)</td><td>가장자리와 이어진 배경만 지우는 설계. 눈 흰자를 지키려는 의도된 동작</td><td>마술봉 추가</td></tr>
+<tr><td>마술봉 안내 막대가 이미지 아래쪽을 가림</td><td>미리보기 칸 안에 띄워 둠</td><td>미리보기 칸 바깥 위쪽으로 옮김. 지울 곳을 가리지 않게 함</td></tr>
+<tr><td>개발 서버에서 화면 구조를 바꾼 뒤 클릭이 안 먹힘</td><td>핫 리로드 뒤 이미지 상자 크기가 0으로 남음(개발 서버 전용)</td><td>새로고침 후 정상. 앱 코드 문제 아님</td></tr>
+<tr><td>확대하면 마우스 아래 지점이 옆으로 최대 100px 밀림</td><td>이미지가 칸보다 작은 동안 가운데 고정이라 스크롤로 보정할 수 없음</td><td>확대 중 둘레에 칸 크기만큼 여백. 19%→282% 확대에서 오차 8px 이하</td></tr>
+<tr><td>린트 경고: 렌더링 중 ref 쓰기, effect 안 setState</td><td>휠 처리 함수를 ref로 넘기고, 이미지가 바뀌면 effect로 배율을 초기화함</td><td>배율을 이미지별 상태로 바꾸고, 휠 처리 함수를 <code>useCallback</code>으로, 최대 배율은 스크롤 칸의 <code>data-max-zoom</code>에서 읽음</td></tr>
+<tr><td>마술봉 추가로 배경 제거가 느려질 위험</td><td>배경색 판정을 처음엔 <code>Math.min(...map())</code>로 써서 픽셀마다 배열을 만듦</td><td>반복문으로 바꿔 1백만 픽셀 이미지에서도 느려지지 않게 함</td></tr>
+</tbody></table>
+    </section>
+    <section id="sec-8">
+      <h2>8. 보안·개인정보·성능 고려사항</h2>
+      <p><strong>개인정보</strong></p>
+      <ul><li>이미지 처리는 모두 브라우저 안에서 한다. 서버, API 키, 데이터베이스가 없다.</li><li>결과 WebP에는 EXIF 같은 메타데이터가 들어가지 않는다. 픽셀만 인코딩하기 때문이다.</li><li>원본 파일은 읽기만 한다(AC-2: 처리 전후 해시와 수정 시각이 같음을 확인).</li></ul>
+      <p><strong>교차 출처 격리</strong></p>
+      <ul><li><code>Cross-Origin-Opener-Policy: same-origin</code>, <code>Cross-Origin-Embedder-Policy: credentialless</code>. 테스트(<code>tests/vercel-config.test.ts</code>)로 헤더가 빠지지 않게 지킨다.</li></ul>
+      <p><strong>성능</strong></p>
+      <ul><li>단색 배경 제거는 1024×1024 한 장에 약 25~44ms다.</li><li>미리보기는 설정이 0.25초 멈춰 있을 때 갱신하며, 품질을 바꾸면 0.39초 만에 반영된다(목표 1초).</li><li>일괄 처리: 1024×1024 PNG 100장, 단색 제거, Worker 3개 기준 <strong>12.0초</strong>(목표 60초).</li><li>취소는 누른 뒤 <strong>0.13초</strong> 만에 멈췄다(목표 1초).</li><li>처리 중 화면이 가장 오래 멈춘 시간은 0.13초였다.</li></ul>
+    </section>
+    <section id="sec-9">
+      <h2>9. 테스트 및 검증</h2>
+      <p><strong>단위 테스트(Vitest, 102개)</strong>: 마술봉(안쪽 영역 제거, 점 없으면 남김, 배경색 없이 마술봉만, 투명 영역을 건너지 않음, 이미지 밖·투명한 점 무시), 자르기 영역, 크기 계획, 여러 크기 목록, 플러드 필(AC-3), 자동 방식 판단, AI 마스크 적용, 여백 다듬기, 이름 규칙과 충돌(AC-8), 프리셋 병합·저장·불러오기(AC-7), 비교 화면 겹침 좌표, 이미지별 자르기 조정 왕복, ZIP 구조, 용량 표시, Vercel 헤더.</p>
+      <p><strong>브라우저 검증(Playwright, 매 단계)</strong>: 개발 서버나 빌드 결과물에서 실제 버튼을 눌러 처리하고 결과 파일까지 확인했다. 폴더 선택창은 자동화할 수 없어, 브라우저 내장 저장소(OPFS)의 폴더를 저장 위치로 연결해 실제 파일 쓰기를 확인했다.</p>
+      <table>
+<thead><tr><th>수용 기준</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>AC-1 지원 형식과 건너뛴 개수</td><td>단위 테스트 ✅</td></tr>
+<tr><td>AC-2 원본 보존</td><td>해시·수정 시각 동일 ✅</td></tr>
+<tr><td>AC-3 단색·체커보드 제거</td><td>모서리 알파 0, 중심 255 ✅</td></tr>
+<tr><td>AC-4, AC-5 크기 조절</td><td>1600×900 / 1920×1080, 512×512 여백 128px / Cover ✅</td></tr>
+<tr><td>AC-6 품질과 무손실</td><td>품질 60 &lt; 90, 무손실 픽셀 완전 일치(PNG 2장, JPG 1장) ✅</td></tr>
+<tr><td>AC-7 프리셋</td><td>새로고침 후 모든 컨트롤 값 일치 ✅</td></tr>
+<tr><td>AC-8 이름 충돌</td><td>기존 파일 유지, <code>-1</code> 번호 ✅</td></tr>
+<tr><td>AC-9 취소</td><td>0.13초, 완료된 28장 모두 정상 ✅</td></tr>
+<tr><td>AC-10 손상 파일</td><td>나머지 처리, 실패 목록에 이름과 이유 ✅</td></tr>
+<tr><td>AC-11 교차 출처 격리</td><td>로컬 빌드에서 <code>crossOriginIsolated === true</code>, 배포 주소 응답에 COOP/COEP 헤더 확인 ✅</td></tr>
+<tr><td>AC-12 스크린샷 제외</td><td><code>screenshots/</code>가 git에 잡히지 않음 ✅</td></tr>
+</tbody></table>
+      <p><strong>마술봉과 확대·축소 브라우저 검증</strong></p>
+      <table>
+<thead><tr><th>항목</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>새 그림(다리와 나뭇가지가 흰 공간을 둘러쌈), 자동 모드만</td><td>다리 사이 흰 배경 남음(알파 255) — 문제 재현</td></tr>
+<tr><td>다리 사이 한 번 클릭</td><td>다리 사이 알파 0, 다리 가장자리 옆도 0, 눈 흰자·몸통·다리 255 유지 ✅</td></tr>
+<tr><td>되돌리기 / Esc / 배경 제거 끈 상태에서 마술봉만</td><td>모두 정상 ✅</td></tr>
+<tr><td>1600×1600 이미지 속 6×6px 구멍, Ctrl+휠 19%→282%</td><td>구멍의 화면 위치 오차 8px 이하 ✅</td></tr>
+<tr><td>확대 상태에서 구멍 클릭</td><td>구멍만 지워짐 ✅</td></tr>
+<tr><td>끌어서 이동</td><td>이동되고 점은 찍히지 않음 ✅</td></tr>
+<tr><td>맞춤</td><td>가운데 정렬, 스크롤 없음 ✅</td></tr>
+</tbody></table>
+      <p><strong>사용자 확인</strong>: D2 배포 주소에서 실제 폴더를 열어 <code>output/</code>에 WebP가 저장되는 것을 사용자가 확인했다.</p>
+    </section>
+    <section id="sec-10">
+      <h2>10. 배포</h2>
+      <ul><li>GitHub <code>poguni/png-to-webp</code>의 <code>main</code>에 push하면 Vercel이 빌드(<code>npm run build</code>)하고 <code>dist/</code>를 배포한다.</li><li>배포 주소: <a href="https://png-to-webp-topaz.vercel.app/">https://png-to-webp-topaz.vercel.app/</a></li><li>환경 변수는 없다.</li><li>D 시점(D1~D6)마다 PRD 13.7의 항목을 확인한다: <code>crossOriginIsolated</code>, 콘솔 오류, <code>output/</code> 저장, AI 모델 동작.</li><li>남은 일: D6 배포, Firefox에서 ZIP 다운로드 확인, <code>v1.0.0</code> 태그(2026-10-23 기준 태그 없음). 마술봉과 확대·축소는 v1.0 범위 밖에서 추가한 기능이므로, 태그를 <code>v1.0.0</code> 그대로 붙일지 <code>v1.1.0</code>으로 붙일지 정해야 한다.</li></ul>
+    </section>
+    <section id="sec-11">
+      <h2>11. 알려진 한계</h2>
+      <ul><li><strong>AI 결과 경계에 원래 배경색이 아주 얇게 비칠 수 있다.</strong> 여러 색이 섞인 배경에서 나타난다. 단색 배경은 "자동"이나 "단색"을 쓰면 없다.</li><li><strong>"자동" 모드는 배경이 복잡하면 AI로 넘어간다.</strong> AI를 빼고 색 제거만 하는 선택지는 없다(게임 스프라이트 프리셋도 같음).</li><li><strong>확대 금지가 켜져 있으면 여러 크기 출력의 파일 이름과 실제 크기가 다를 수 있다.</strong> 예: <code>photo_1920x1080.webp</code>가 731×411.</li><li><strong>이미지별 조정(마술봉 클릭 위치 포함)은 프리셋에 저장되지 않고</strong>, 폴더를 다시 불러오면 사라진다.</li><li><strong>마술봉은 클릭한 곳 주변 색이 피사체와 비슷하면 피사체까지 번질 수 있다.</strong> 허용 오차를 배경 제거와 함께 쓰므로, 마술봉만 따로 낮출 수는 없다.</li><li><strong>마술봉 점은 마지막 것부터 되돌리거나 모두 지울 수만 있다.</strong> 특정 점 하나만 골라 지울 수는 없다.</li><li><strong>확대 상태에서는 이미지 둘레에 빈 공간이 생긴다.</strong> 기준점을 유지하기 위한 여백이다.</li><li>확대·축소는 마우스 휠과 버튼만 지원한다. 터치 화면의 두 손가락 확대는 지원하지 않는다.</li><li><strong>ZIP 경로는 결과를 메모리에 모은다.</strong> 매우 많은 파일을 처리하면 메모리를 많이 쓴다. 실제 Firefox·Safari에서는 아직 확인하지 않았다(Chromium에서 시뮬레이션으로 확인).</li><li><strong>AI 모드 장당 시간(PRD 6장: WebGPU 3초, WASM 10초)은 정식으로 측정하지 않았다.</strong></li><li>**<code>dist/</code>에 쓰이지 않는 onnxruntime WASM 파일(23.9MB)이 포함된다.** 실행 때는 CDN에서 받으므로 사용자 다운로드량에는 영향이 없다.</li><li>브라우저 보안 때문에 상단에 폴더 전체 경로를 보여 줄 수 없다(폴더 이름만 표시).</li><li>Vercel 자동 배포가 일부 push에서 동작하지 않은 원인을 아직 찾지 못했다.</li><li><strong>라이선스</strong>: <code>@imgly/background-removal</code>은 AGPL-3.0이다. 주소를 다른 사람과 공유하기 전에 PRD 12장 Q2를 결정해야 한다.</li></ul>
+    </section>
+    <section id="sec-12">
+      <h2>12. 향후 개선 아이디어 / 업데이트 계획</h2>
+      <h3>다음에 하면 좋을 것</h3>
+      <ol><li><strong>v1.0 마무리</strong>: D6 배포, Firefox ZIP 확인, <code>v1.0.0</code> 태그, 실제 PC에서 100장 처리 시간과 AI 장당 시간 기록(M5 완료 기준).</li><li><strong>라이선스 결정(Q2)</strong>: 공개할 계획이 있으면 앱을 AGPL로 공개하거나, MIT 계열 모델(transformers.js + MODNet 등)로 <code>aiBackground.ts</code>를 바꾼다.</li><li><strong>Vercel 자동 배포 원인 확인</strong>: Settings → Git의 저장소 연결과 Production Branch.</li><li><strong>"안쪽 배경도 지우기" 옵션</strong>(마술봉 논의의 ②): 일정 크기 이상 갇힌 배경을 일괄로 지우는 선택지. 같은 문제가 많은 이미지에서 반복되면 마술봉과 함께 쓰기 좋다.</li><li><strong>"자동(AI 제외)" 배경 제거 방식</strong>: 단색·체커보드만 판단하고 복잡한 배경은 건너뛰는 선택지. 게임 스프라이트 프리셋을 PRD 의도대로 맞출 수 있다.</li><li><strong>실제 나노바나나 이미지 20장으로 품질 검증</strong>(PRD 11장 4번)과 허용 오차 기본값 조정.</li></ol>
+      <h3>여유 있으면</h3>
+      <ul><li><strong>처리 리포트 CSV(F10)</strong>: 파일별 원본·결과 용량과 해상도, 적용 단계.</li><li><strong>목표 용량 모드(F6-7)</strong>: "200KB 이하"처럼 지정하면 품질을 자동으로 찾기.</li><li><strong>프리셋 JSON 내보내기·가져오기(F9-3)</strong>.</li><li><strong>실패한 파일만 다시 처리</strong> 버튼.</li><li><strong>마술봉 개선</strong>: 점마다 허용 오차 따로 정하기, 점을 골라 하나만 지우기, 반대로 "되살리기" 붓(지워진 곳 복원).</li><li><strong>확대 단축키</strong>: <code>+</code>/<code>-</code>/<code>0</code> 키, 스페이스바를 누른 채 끌어서 이동, 터치 화면 두 손가락 확대.</li><li><strong>처리 단계 칩</strong>(시안에 있던 "1 배경 제거 → 2 여백 다듬기 → …" 표시).</li><li><strong>이미지별 조정 저장</strong>: 같은 폴더를 다시 열어도 개별 설정이 남도록.</li><li><strong>확대 금지 + Contain일 때 "키우지 않고 여백만 채우기" 옵션</strong>: 작은 스프라이트를 흐리게 키우지 않고도 512×512 캔버스를 맞출 수 있다.</li><li><strong>ZIP 스트리밍 생성</strong>: 대량 처리 시 메모리 사용 줄이기.</li></ul>
+      <h3>아이디어 수준</h3>
+      <ul><li>PWA 설치와 오프라인 지원(6장 P2).</li><li>AI 결과 경계의 배경색 번짐을 줄이는 디프린지 후처리.</li><li>스프라이트 시트(여러 이미지를 한 장으로) 출력.</li><li>AVIF 출력 형식 추가.</li></ul>
+    </section>
+    <section id="sec-13">
+      <h2>13. 이전 버전(v1) 이후 변경 사항</h2>
+      <p><strong>새 기능</strong></p>
+      <ul><li><strong>마술봉</strong> (<code>1a2e344</code>): 피사체 안쪽에 갇혀 남은 배경을 클릭해 지운다. 클릭한 픽셀 색과 이어진 비슷한 색 영역만 지우고, 경계 다듬기를 그대로 적용한다. 툴바 버튼, 안내 막대(되돌리기·모두 지우기·완료), 번호 표시, "이 이미지만" 줄, 설정 패널 안내 문구로 기능을 알린다. Esc로 끈다.</li><li><strong>미리보기 확대·축소</strong> (<code>eba160c</code>): <code>− % + 맞춤</code> 컨트롤, Ctrl(⌘)+휠로 마우스 위치 기준 확대, 스크롤과 끌어서 이동. 모든 보기 방식에서 쓸 수 있다.</li></ul>
+      <p><strong>바뀐 코드</strong></p>
+      <ul><li><code>src/lib/background.ts</code>: <code>removeBackground</code>에 마술봉 시작점(<code>seeds</code>) 추가, <code>Point</code> 타입.</li><li><code>src/workers/encode.worker.ts</code>: 변환 옵션에 <code>wand</code> 추가. 색으로 지우지 않은 경우 마술봉 영역만 따로 지움.</li><li><code>src/store.ts</code>: 이미지별 설정에 <code>wandPoints</code> 추가.</li><li><code>src/components/PreviewPanel.tsx</code>: 마술봉 보기, 확대·축소, 끌어서 이동.</li><li><code>src/components/SettingsPanel.tsx</code>, <code>icons.tsx</code>: 안내 문구와 마술봉 아이콘.</li></ul>
+      <p><strong>문서 내용 갱신</strong></p>
+      <ul><li>3장 기능 표, 5장 타임라인(v1.0 이후 작업), 6장 의사결정 13개, 7장 문제 해결 6건, 9장 검증 결과, 11장 한계, 12장 개선 아이디어를 갱신했다.</li><li>10장: 아직 <code>v1.0.0</code> 태그가 없고, 추가 기능을 고려해 태그 버전을 정해야 한다는 점을 적었다.</li></ul>
+    </section>
+  </main>
+</div>
+<script>
+  const links = document.querySelectorAll('nav.sidebar a');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+  const setActive = (id) => links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => { if (entry.isIntersecting) setActive(entry.target.id); });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach((el) => el && observer.observe(el));
+</script>
+</body>
+</html>
