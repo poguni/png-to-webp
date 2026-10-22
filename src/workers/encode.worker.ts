@@ -25,7 +25,14 @@ export interface ConvertOptions {
   target: Size | null
   fit: FitMode
   noUpscale: boolean
+  /** 손실 압축 품질 0~100 (F6-1). 무손실이면 쓰지 않는다. */
   quality: number
+  /** 무손실 압축 (F6-2) */
+  lossless: boolean
+  /** 투명 영역 경계의 압축 품질 0~100 (F6-3) */
+  alphaQuality: number
+  /** 압축 노력도 0~6. 높을수록 작고 느리다 (F6-4) */
+  effort: number
 }
 
 export interface EncodeRequest {
@@ -155,7 +162,12 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
 
   try {
     const result = await resize(crop(cleared.image, options), options)
-    const buffer = await encodeWebp(toImageData(result), { quality: options.quality })
+    const buffer = await encodeWebp(toImageData(result), {
+      quality: options.quality,
+      lossless: options.lossless ? 1 : 0,
+      alpha_quality: options.alphaQuality,
+      method: options.effort,
+    })
     const response: EncodeResponse = { id, ok: true, buffer, background: cleared.result }
     self.postMessage(response, { transfer: [buffer] })
   } catch (error) {

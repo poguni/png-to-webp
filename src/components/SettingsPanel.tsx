@@ -6,10 +6,12 @@ import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outpu
 import { SIZE_PRESETS, targetSize, type FitMode, type ResizeSettings } from '../lib/resize.ts'
 import { useAppStore } from '../store.ts'
 
-const QUALITY_PRESETS = [
-  { label: '고화질', value: 90 },
-  { label: '균형', value: 80 },
-  { label: '최소 용량', value: 60 },
+/** 품질 프리셋 (F6-5). value가 null이면 무손실 */
+const QUALITY_PRESETS: { label: string; value: number | null }[] = [
+  { label: '고화질 90', value: 90 },
+  { label: '균형 80', value: 80 },
+  { label: '최소 60', value: 60 },
+  { label: '무손실', value: null },
 ]
 
 const selectClass =
@@ -23,7 +25,7 @@ export default function SettingsPanel() {
   const sample = useAppStore((s) => s.items.find((i) => i.id === s.selectedId) ?? s.items[0])
   const batchError = useAppStore((s) => s.batchError)
   const { updateSettings } = useAppStore.getState()
-  const { quality, naming, conflict } = settings
+  const { quality, lossless, alphaQuality, effort, naming, conflict } = settings
 
   return (
     <aside className="flex grow basis-[320px] flex-col border-line bg-panel lg:overflow-y-auto lg:border-l">
@@ -31,8 +33,21 @@ export default function SettingsPanel() {
       <CropSection />
       <ResizeSection />
 
-      <Section title="WebP 압축">
-        <label className="flex flex-col gap-1.5 text-xs text-muted">
+      <Section
+        title="WebP 압축"
+        action={
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={lossless}
+              onChange={(e) => updateSettings({ lossless: e.target.checked })}
+              className="size-[15px] accent-accent"
+            />
+            무손실
+          </label>
+        }
+      >
+        <label className={`flex flex-col gap-1.5 text-xs text-muted ${lossless ? 'opacity-50' : ''}`}>
           <span className="flex justify-between">
             품질 <span className="font-mono text-ink">{quality}</span>
           </span>
@@ -41,28 +56,70 @@ export default function SettingsPanel() {
             min={0}
             max={100}
             value={quality}
+            disabled={lossless}
             onChange={(e) => updateSettings({ quality: Number(e.target.value) })}
             className="accent-accent"
           />
         </label>
-        <div className="flex gap-1.5">
-          {QUALITY_PRESETS.map((preset) => (
-            <button
-              key={preset.value}
-              type="button"
-              aria-pressed={quality === preset.value}
-              onClick={() => updateSettings({ quality: preset.value })}
-              className={`h-[30px] flex-1 rounded-lg border text-xs ${
-                quality === preset.value
-                  ? 'border-accent bg-[#1d2414] font-semibold text-accent'
-                  : 'border-line-strong text-muted hover:text-ink'
-              }`}
-            >
-              {preset.label} {preset.value}
-            </button>
-          ))}
+        <div className="grid grid-cols-4 gap-1.5">
+          {QUALITY_PRESETS.map((preset) => {
+            const selected = preset.value === null ? lossless : !lossless && quality === preset.value
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                aria-pressed={selected}
+                onClick={() =>
+                  updateSettings(preset.value === null ? { lossless: true } : { lossless: false, quality: preset.value })
+                }
+                className={`h-[30px] rounded-lg border text-xs ${
+                  selected
+                    ? 'border-accent bg-[#1d2414] font-semibold text-accent'
+                    : 'border-line-strong text-muted hover:text-ink'
+                }`}
+              >
+                {preset.label}
+              </button>
+            )
+          })}
         </div>
-        <p className="m-0 text-xs text-subtle">값이 높을수록 화질이 좋고 파일이 커집니다.</p>
+        <p className="m-0 text-xs text-subtle">
+          {lossless
+            ? '화질 손실 없이 저장합니다. 파일이 커질 수 있습니다.'
+            : '값이 높을수록 화질이 좋고 파일이 커집니다.'}
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <label className={`flex flex-col gap-1.5 text-xs text-muted ${lossless ? 'opacity-50' : ''}`}>
+            <span className="flex justify-between">
+              알파 품질 <span className="font-mono text-ink">{alphaQuality}</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={alphaQuality}
+              disabled={lossless}
+              onChange={(e) => updateSettings({ alphaQuality: Number(e.target.value) })}
+              className="accent-accent"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-xs text-muted">
+            <span className="flex justify-between">
+              압축 노력도 <span className="font-mono text-ink">{effort}</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={6}
+              value={effort}
+              onChange={(e) => updateSettings({ effort: Number(e.target.value) })}
+              className="accent-accent"
+            />
+          </label>
+        </div>
+        <p className="m-0 text-xs text-subtle">
+          알파 품질은 투명한 경계의 품질입니다. 노력도가 높을수록 파일이 작아지지만 느려집니다.
+        </p>
       </Section>
 
       <Section title="출력">

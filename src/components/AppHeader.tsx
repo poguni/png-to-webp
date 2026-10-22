@@ -1,6 +1,7 @@
 import { useOpenSource } from '../hooks/useOpenSource.ts'
 import { useAppStore } from '../store.ts'
 import { FolderIcon, LockIcon, LogoIcon, PlayIcon } from './icons.tsx'
+import PresetControls from './PresetControls.tsx'
 
 export default function AppHeader() {
   const source = useAppStore((s) => s.source)
@@ -36,6 +37,7 @@ export default function AppHeader() {
         </button>
       )}
       <div className="flex-1" />
+      {source && batch === null && <PresetControls />}
       {source ? (
         batch === null && (
           <button

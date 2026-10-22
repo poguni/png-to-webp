@@ -8,6 +8,7 @@ import type { ImageKind } from './lib/imageFiles.ts'
 import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
 import { outputFileName, resolveName, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
 import { scanSource, type Source } from './lib/pickers.ts'
+import { BUILTIN_PRESETS, DEFAULT_SETTINGS, loadUserPresets, saveUserPresets, type Preset } from './lib/presets.ts'
 import { targetSize, type ResizeSettings } from './lib/resize.ts'
 import type { BackgroundResult, ConvertOptions } from './workers/encode.worker.ts'
 import { createThumbnail } from './lib/thumbnail.ts'
@@ -33,6 +34,12 @@ export interface Settings {
   resize: ResizeSettings
   /** WebP 품질 0~100 (F6-1) */
   quality: number
+  /** 무손실 압축 (F6-2) */
+  lossless: boolean
+  /** 투명 영역 경계의 압축 품질 0~100 (F6-3) */
+  alphaQuality: number
+  /** 압축 노력도 0~6 (F6-4) */
+  effort: number
   naming: NamingOptions
   conflict: ConflictPolicy
 }
@@ -71,6 +78,8 @@ interface AppState {
   settings: Settings
   batch: Batch | null
   batchError: string | null
+  /** 브라우저에 저장한 내 프리셋 (F9-1) */
+  userPresets: Preset[]
 
   open(source: Source): Promise<void>
   setRecursive(recursive: boolean): Promise<void>
@@ -79,6 +88,9 @@ interface AppState {
   toggleChecked(id: string): void
   setChecked(ids: readonly string[], checked: boolean): void
   updateSettings(patch: Partial<Settings>): void
+  /** 현재 설정을 내 프리셋으로 저장한다. 같은 이름이 있으면 덮어쓴다. 실패하면 이유를 돌려준다. */
+  savePreset(name: string): string | null
+  deletePreset(name: string): void
   startBatch(): Promise<void>
   closeBatch(): void
 }
@@ -103,6 +115,9 @@ export function convertOptions(settings: Settings, kind: ImageKind): ConvertOpti
     fit: settings.resize.fit,
     noUpscale: settings.resize.noUpscale,
     quality: settings.quality,
+    lossless: settings.lossless,
+    alphaQuality: settings.alphaQuality,
+    effort: settings.effort,
   }
 }
 
@@ -178,18 +193,38 @@ export const useAppStore = create<AppState>()((set, get) => {
     selectedId: null,
     scanning: false,
     scanError: null,
-    settings: {
-      background: { enabled: false, mode: 'auto', tolerance: 15, feather: 1, applyToJpg: false },
-      crop: { ratio: 'original', custom: { width: 21, height: 9 }, anchor: { x: 0.5, y: 0.5 } },
-      resize: { size: 'original', custom: { width: 800, height: 600 }, fit: 'contain', noUpscale: true },
-      quality: 80,
-      naming: { case: 'keep', prefix: '', suffix: '' },
-      conflict: 'number',
-    },
+    settings: DEFAULT_SETTINGS,
     batch: null,
     batchError: null,
+    userPresets: loadUserPresets(),
 
     updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
+
+    savePreset(name) {
+      const trimmed = name.trim()
+      if (!trimmed) return '이름을 입력하세요.'
+      if (BUILTIN_PRESETS.some((p) => p.name === trimmed)) return '기본 프리셋과 같은 이름은 쓸 수 없습니다.'
+      const { settings, userPresets } = get()
+      const others = userPresets.filter((p) => p.name !== trimmed)
+      const next = [...others, { name: trimmed, settings }]
+      try {
+        saveUserPresets(next)
+      } catch (error) {
+        return `브라우저에 저장하지 못했습니다. (${(error as Error).message})`
+      }
+      set({ userPresets: next })
+      return null
+    },
+
+    deletePreset(name) {
+      const next = get().userPresets.filter((p) => p.name !== name)
+      try {
+        saveUserPresets(next)
+      } catch {
+        // 저장하지 못해도 이번 세션의 목록에서는 지운다.
+      }
+      set({ userPresets: next })
+    },
 
     async startBatch() {
       const { source, items, settings } = get()
