@@ -1,4 +1,14 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { useElementSize } from '../hooks/useElementSize.ts'
 import { useResultPreview } from '../hooks/useResultPreview.ts'
 import type { BackgroundMode } from '../lib/background.ts'
@@ -29,6 +39,9 @@ const IMAGE_BACKGROUNDS: { value: BackgroundMode | 'off'; label: string }[] = [
 
 const smallButton = 'h-8 rounded-lg border border-line-strong px-2.5 text-xs text-ink hover:border-[#3a404b]'
 
+/** 가장 크게 확대했을 때의 배율 (원본 픽셀 기준 800%) */
+const MAX_SCALE = 8
+
 /** 투명 영역 뒤에 깔 배경 (F2-3) */
 const BACKDROPS: { value: Backdrop; label: string; className: string }[] = [
   { value: 'checker', label: '체크무늬', className: 'checker' },
@@ -50,6 +63,62 @@ export default function PreviewPanel() {
   const imgRef = useRef<HTMLImageElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const frame = useElementSize(frameRef)
+  // 확대 배율. 1이면 미리보기 칸에 맞춘 크기다. 이미지마다 따로 두어, 다른 이미지를 고르면 맞춤 크기로 시작한다.
+  const itemId = item?.id
+  const [zoomState, setZoomState] = useState<{ id?: string; zoom: number }>({ zoom: 1 })
+  const zoom = zoomState.id === itemId ? zoomState.zoom : 1
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLElement>(null)
+  /** 확대·축소 뒤에도 같은 자리에 있어야 할 점. 이미지 안의 비율 위치와 화면 좌표 */
+  const zoomAnchor = useRef<{ fx: number; fy: number; x: number; y: number } | null>(null)
+  /** 끌어서 이동하는 중인 상태. moved가 true면 클릭으로 보지 않는다. */
+  const pan = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null)
+
+  /**
+   * 배율을 factor배 한다. at 화면 좌표(없으면 미리보기 칸 가운데)가 확대 뒤에도 제자리에 남는다.
+   * 가장 큰 배율은 이미지 크기에 따라 달라서 렌더링할 때 스크롤 칸의 data-max-zoom에 적어 둔다.
+   */
+  const zoomBy = useCallback(
+    (factor: number, at?: { x: number; y: number }) => {
+      const scroller = scrollRef.current
+      const box = boxRef.current?.getBoundingClientRect()
+      if (!scroller || !box || box.width === 0) return
+      const view = scroller.getBoundingClientRect()
+      const x = at?.x ?? view.left + view.width / 2
+      const y = at?.y ?? view.top + view.height / 2
+      zoomAnchor.current = { fx: (x - box.left) / box.width, fy: (y - box.top) / box.height, x, y }
+      const max = Number(scroller.dataset.maxZoom) || 1
+      setZoomState((s) => {
+        const current = Math.min(s.id === itemId ? s.zoom : 1, max)
+        return { id: itemId, zoom: Math.min(max, Math.max(1, current * factor)) }
+      })
+    },
+    [itemId],
+  )
+
+  // 확대·축소한 뒤 기준점이 화면에서 같은 자리에 오도록 스크롤을 맞춘다.
+  useLayoutEffect(() => {
+    const anchor = zoomAnchor.current
+    const box = boxRef.current?.getBoundingClientRect()
+    const scroller = scrollRef.current
+    zoomAnchor.current = null
+    if (!anchor || !box || !scroller) return
+    scroller.scrollLeft += box.left + anchor.fx * box.width - anchor.x
+    scroller.scrollTop += box.top + anchor.fy * box.height - anchor.y
+  }, [zoom])
+
+  // Ctrl(⌘) + 휠로 확대·축소한다. 브라우저 확대를 막아야 해서 passive가 아닌 리스너를 쓴다.
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      zoomBy(e.deltaY < 0 ? 1.25 : 0.8, { x: e.clientX, y: e.clientY })
+    }
+    scroller.addEventListener('wheel', onWheel, { passive: false })
+    return () => scroller.removeEventListener('wheel', onWheel)
+  }, [zoomBy])
 
   // 마술봉은 Esc로 끈다.
   useEffect(() => {
@@ -131,12 +200,47 @@ export default function PreviewPanel() {
 
   // 결과만 볼 때는 결과 크기에 맞추고, 그 밖에는 원본 크기에 맞춘다. 작은 이미지는 키우지 않는다.
   const shown = mode === 'result' && final ? final : { width, height }
-  const scale = ready && frame.width > 0 ? Math.min(frame.width / shown.width, frame.height / shown.height, 1) : 0
+  const fit = ready && frame.width > 0 ? Math.min(frame.width / shown.width, frame.height / shown.height, 1) : 0
+  const maxZoom = fit > 0 ? Math.max(1, MAX_SCALE / fit) : 1
+  const scale = fit * Math.min(zoom, maxZoom)
+  // 확대하면 이미지 둘레에 칸 크기만큼 여백을 두어 어느 쪽으로든 스크롤할 수 있게 한다. 그래야 확대할 때
+  // 마우스 아래의 지점을 제자리에 둘 수 있다. 이미지가 칸 밖으로 다 나가지 않게 40px은 남긴다.
+  const boxStyle = {
+    width: Math.round(shown.width * scale),
+    height: Math.round(shown.height * scale),
+    ...(zoom > 1 && { margin: `${Math.max(0, frame.height - 40)}px ${Math.max(0, frame.width - 40)}px` }),
+  }
+
+
+  // 확대했을 때 마술봉과 결과 보기에서는 끌어서 이동한다. 조금만 움직였으면 클릭으로 본다.
+  const canPan = mode === 'wand' || mode === 'result'
+  function startPan(e: PointerEvent<HTMLElement>) {
+    const scroller = scrollRef.current
+    if (!scroller || e.button !== 0) return
+    pan.current = { x: e.clientX, y: e.clientY, left: scroller.scrollLeft, top: scroller.scrollTop, moved: false }
+  }
+  function movePan(e: PointerEvent<HTMLElement>) {
+    const p = pan.current
+    const scroller = scrollRef.current
+    if (!p || !scroller || e.buttons !== 1) return
+    const dx = e.clientX - p.x
+    const dy = e.clientY - p.y
+    if (!p.moved && Math.abs(dx) + Math.abs(dy) < 5) return
+    if (!p.moved) e.currentTarget.setPointerCapture(e.pointerId)
+    p.moved = true
+    scroller.scrollLeft = p.left - dx
+    scroller.scrollTop = p.top - dy
+  }
   // 비교와 마술봉은 원본 위에 결과를 겹친다. 마술봉은 결과만 보이게 한다.
   const layered = mode === 'compare' || mode === 'wand'
   const shownSplit = mode === 'wand' ? 0 : split
 
   function addWandPoint(e: MouseEvent<HTMLDivElement>) {
+    // 끌어서 이동한 경우는 점을 찍지 않는다.
+    if (pan.current?.moved) {
+      pan.current = null
+      return
+    }
     const box = e.currentTarget.getBoundingClientRect()
     const x = Math.floor((e.clientX - box.left) / scale)
     const y = Math.floor((e.clientY - box.top) / scale)
@@ -225,6 +329,38 @@ export default function PreviewPanel() {
             />
           ))}
         </div>
+        <div className="flex items-center rounded-lg border border-line-strong bg-surface" role="group" aria-label="확대·축소">
+          <button
+            type="button"
+            aria-label="축소"
+            onClick={() => zoomBy(1 / 1.5)}
+            disabled={!ready || zoom <= 1}
+            className="size-8 text-base text-muted hover:text-ink disabled:opacity-40"
+          >
+            −
+          </button>
+          <span className="min-w-[48px] text-center font-mono text-xs" aria-live="polite">
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            type="button"
+            aria-label="확대"
+            onClick={() => zoomBy(1.5)}
+            disabled={!ready || zoom >= maxZoom}
+            className="size-8 text-base text-muted hover:text-ink disabled:opacity-40"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoomState({ id: itemId, zoom: 1 })}
+            disabled={!ready || zoom <= 1}
+            title="미리보기 칸에 맞춰 보기"
+            className="h-8 border-l border-line-strong px-2.5 text-xs text-muted hover:text-ink disabled:opacity-40"
+          >
+            맞춤
+          </button>
+        </div>
       </div>
 
       {/* 마술봉 사용법과 되돌리기. 이미지를 가리지 않도록 미리보기 위에 둔다. */}
@@ -236,6 +372,7 @@ export default function PreviewPanel() {
           </span>
           <span className="text-muted">
             {wandPoints.length > 0 ? `${wandPoints.length}곳 선택` : '아직 선택 없음'} · 허용 오차 {settings.background.tolerance}
+            {' · '}작은 곳은 Ctrl+휠이나 오른쪽 위 +로 확대, 끌어서 이동
           </span>
           <span className="ml-auto flex gap-1.5">
             <button type="button" onClick={undoWandPoint} disabled={wandPoints.length === 0} className={`${smallButton} disabled:opacity-40`}>
@@ -251,32 +388,47 @@ export default function PreviewPanel() {
         </div>
       )}
 
-      <div className={`${backdropClass} relative flex min-h-[360px] flex-1 overflow-hidden rounded-[14px] border border-line p-6`}>
-        <div ref={frameRef} className="flex min-w-0 flex-1 items-center justify-center">
+      <div
+        ref={frameRef}
+        className={`${backdropClass} relative min-h-[360px] flex-1 overflow-hidden rounded-[14px] border border-line p-6`}
+      >
+        {/* 확대하면 이 안에서 스크롤한다. m-auto로 작을 때는 가운데, 클 때는 끝까지 스크롤된다. */}
+        <div ref={scrollRef} data-max-zoom={maxZoom} className="absolute inset-0 flex overflow-auto p-6">
           {item.error ? (
-            <div className="flex flex-col items-center gap-2 text-sm text-danger">
+            <div className="m-auto flex flex-col items-center gap-2 text-sm text-danger">
               <AlertIcon width="28" height="28" />
               {item.error}
             </div>
           ) : !ready ? (
-            <span className="text-sm text-subtle">불러오는 중…</span>
+            <span className="m-auto text-sm text-subtle">불러오는 중…</span>
           ) : mode === 'result' ? (
             result ? (
               <img
+                ref={(el) => {
+                  boxRef.current = el
+                }}
                 src={result.url}
                 alt={`${item.name} 결과`}
-                className="block"
-                style={{ width: Math.round(shown.width * scale), height: Math.round(shown.height * scale) }}
+                draggable={false}
+                className={`m-auto block max-w-none shrink-0 ${zoom > 1 ? 'cursor-grab' : ''}`}
+                style={boxStyle}
+                onPointerDown={startPan}
+                onPointerMove={movePan}
               />
             ) : (
-              <ResultMessage error={preview.error} />
+              <div className="m-auto">
+                <ResultMessage error={preview.error} />
+              </div>
             )
           ) : (
             <div
-              className={`relative overflow-hidden ${
+              ref={(el) => {
+                boxRef.current = el
+              }}
+              className={`relative m-auto shrink-0 overflow-hidden ${
                 mode === 'compare' ? 'cursor-ew-resize touch-none select-none' : mode === 'wand' ? 'cursor-crosshair select-none' : ''
               }`}
-              style={{ width: Math.round(width * scale), height: Math.round(height * scale) }}
+              style={boxStyle}
               onClick={mode === 'wand' ? addWandPoint : undefined}
               onPointerDown={
                 mode === 'compare'
@@ -284,9 +436,11 @@ export default function PreviewPanel() {
                       e.currentTarget.setPointerCapture(e.pointerId)
                       moveSplit(e)
                     }
-                  : undefined
+                  : canPan
+                    ? startPan
+                    : undefined
               }
-              onPointerMove={mode === 'compare' ? (e) => e.buttons === 1 && moveSplit(e) : undefined}
+              onPointerMove={mode === 'compare' ? (e) => e.buttons === 1 && moveSplit(e) : canPan ? movePan : undefined}
             >
               {/* 비교할 때는 원본도 왼쪽만 남긴다. 겹쳐 두면 결과 쪽 가장자리에 원본이 가늘게 비친다. */}
               <img
