@@ -1,17 +1,26 @@
 import { create } from 'zustand'
-import type { BackgroundSettings } from './lib/background.ts'
+import type { BackgroundMode, BackgroundSettings } from './lib/background.ts'
 import { forEachLimited } from './lib/concurrency.ts'
-import { ratioOf, type CropSettings } from './lib/crop.ts'
+import { ratioOf, type Anchor, type CropSettings } from './lib/crop.ts'
 import type { ModelProgress } from './lib/aiBackground.ts'
 import { encodeToWebp, onModelProgress } from './lib/encoder.ts'
 import type { ImageKind } from './lib/imageFiles.ts'
 import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
-import { outputFileName, resolveName, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
+import { outputFileName, resolveName, withSizeSuffix, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
 import { scanSource, type Source } from './lib/pickers.ts'
 import { BUILTIN_PRESETS, DEFAULT_SETTINGS, loadUserPresets, saveUserPresets, type Preset } from './lib/presets.ts'
-import { targetSize, type ResizeSettings } from './lib/resize.ts'
+import { targetSizes, type ResizeSettings } from './lib/resize.ts'
+import type { TrimSettings } from './lib/trim.ts'
 import type { BackgroundResult, ConvertOptions } from './workers/encode.worker.ts'
 import { createThumbnail } from './lib/thumbnail.ts'
+
+/** 이 이미지에만 적용하는 설정 (S4, F4-3) */
+export interface ImageOverrides {
+  /** 배경 제거 방식. `off`면 지우지 않는다. */
+  background?: BackgroundMode | 'off'
+  /** 자르기 위치와 크기. 비율을 정했을 때만 쓴다. */
+  crop?: { anchor: Anchor; scale: number }
+}
 
 export interface ImageItem {
   /** 불러온 폴더 기준 경로. 목록 안에서 유일하다. */
@@ -24,6 +33,7 @@ export interface ImageItem {
   height?: number
   thumbUrl?: string
   error?: string
+  overrides?: ImageOverrides
 }
 
 export type KindFilter = 'all' | ImageKind
@@ -31,6 +41,7 @@ export type KindFilter = 'all' | ImageKind
 export interface Settings {
   background: BackgroundSettings
   crop: CropSettings
+  trim: TrimSettings
   resize: ResizeSettings
   /** WebP 품질 0~100 (F6-1) */
   quality: number
@@ -48,8 +59,11 @@ export type ResultStatus = 'waiting' | 'running' | 'done' | 'failed' | 'skipped'
 
 export interface ItemResult {
   status: ResultStatus
-  /** 저장 위치 기준 경로. 예: `sub/hero.webp` */
+  /** 저장 위치 기준 경로. 여러 크기로 출력하면 첫 번째 파일. 예: `sub/hero.webp` */
   outputPath?: string
+  /** 저장한 파일 수 */
+  outputCount?: number
+  /** 저장한 파일 용량의 합 */
   outputSize?: number
   error?: string
   /** 처리 중 참고할 내용. 예: 배경 제거 결과 */
@@ -88,6 +102,8 @@ interface AppState {
   toggleChecked(id: string): void
   setChecked(ids: readonly string[], checked: boolean): void
   updateSettings(patch: Partial<Settings>): void
+  /** 이미지별 설정을 바꾼다. 값을 undefined로 주면 그 항목을 전체 설정으로 되돌린다. */
+  setOverrides(id: string, patch: ImageOverrides): void
   /** 현재 설정을 내 프리셋으로 저장한다. 같은 이름이 있으면 덮어쓴다. 실패하면 이유를 돌려준다. */
   savePreset(name: string): string | null
   deletePreset(name: string): void
@@ -104,14 +120,22 @@ export function backgroundNote(result: BackgroundResult): string {
 }
 
 /** 설정을 이미지 한 장의 변환 옵션으로 바꾼다. 일괄 처리와 미리보기가 함께 쓴다. */
-export function convertOptions(settings: Settings, kind: ImageKind): ConvertOptions {
+export function convertOptions(settings: Settings, item: Pick<ImageItem, 'kind' | 'overrides'>): ConvertOptions {
   const bg = settings.background
+  // 이미지별로 배경 제거 방식을 고르면 전체 설정이나 JPG 여부와 관계없이 그 방식을 쓴다.
+  const mode = item.overrides?.background
+  const removeBg = mode ? mode !== 'off' : bg.enabled && (item.kind === 'PNG' || bg.applyToJpg)
+  const ratio = ratioOf(settings.crop)
+  const crop = ratio !== null ? item.overrides?.crop : undefined
   return {
-    background:
-      bg.enabled && (kind === 'PNG' || bg.applyToJpg) ? { mode: bg.mode, tolerance: bg.tolerance, feather: bg.feather } : null,
-    ratio: ratioOf(settings.crop),
-    anchor: settings.crop.anchor,
-    target: targetSize(settings.resize),
+    background: removeBg
+      ? { mode: mode && mode !== 'off' ? mode : bg.mode, tolerance: bg.tolerance, feather: bg.feather }
+      : null,
+    trim: settings.trim.enabled ? { padding: settings.trim.padding, unit: settings.trim.unit } : null,
+    ratio,
+    anchor: crop?.anchor ?? settings.crop.anchor,
+    cropScale: crop?.scale ?? 1,
+    targets: targetSizes(settings.resize),
     fit: settings.resize.fit,
     noUpscale: settings.resize.noUpscale,
     quality: settings.quality,
@@ -200,6 +224,17 @@ export const useAppStore = create<AppState>()((set, get) => {
 
     updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
 
+    setOverrides(id, patch) {
+      set((s) => ({
+        items: s.items.map((item) => {
+          if (item.id !== id) return item
+          const next: ImageOverrides = { ...item.overrides, ...patch }
+          for (const key of Object.keys(next) as (keyof ImageOverrides)[]) if (next[key] === undefined) delete next[key]
+          return { ...item, overrides: Object.keys(next).length > 0 ? next : undefined }
+        }),
+      }))
+    },
+
     savePreset(name) {
       const trimmed = name.trim()
       if (!trimmed) return '이름을 입력하세요.'
@@ -277,26 +312,48 @@ export const useAppStore = create<AppState>()((set, get) => {
           const slash = item.id.lastIndexOf('/')
           const dirPath = slash >= 0 ? item.id.slice(0, slash) : ''
           const dir = await dirFor(dirPath)
-          const decision = resolveName(
-            outputFileName(item.name, settings.naming),
-            dir.existing,
-            dir.produced,
-            settings.conflict,
-          )
-          const outputPath = dirPath ? `${dirPath}/${decision.name}` : decision.name
-          if (decision.action === 'skip') {
-            setResult(item.id, { status: 'skipped', outputPath, error: '같은 이름의 파일이 있어 건너뛰었습니다' })
+          const pathOf = (name: string) => (dirPath ? `${dirPath}/${name}` : name)
+          const options = convertOptions(settings, item)
+          // 여러 크기로 출력하면 크기마다 이름을 정한다. 예: hero_512.webp, hero_256.webp (F5-5)
+          const baseName = outputFileName(item.name, settings.naming)
+          const planned = options.targets.map((size) => ({
+            size,
+            decision: resolveName(
+              settings.resize.multi && size ? withSizeSuffix(baseName, size) : baseName,
+              dir.existing,
+              dir.produced,
+              settings.conflict,
+            ),
+          }))
+          const writes = planned.filter((p) => p.decision.action !== 'skip')
+          if (writes.length === 0) {
+            setResult(item.id, {
+              status: 'skipped',
+              outputPath: pathOf(planned[0].decision.name),
+              error: '같은 이름의 파일이 있어 건너뛰었습니다',
+            })
             continue
           }
-          dir.produced.add(decision.name.toLowerCase())
+          for (const p of writes) dir.produced.add(p.decision.name.toLowerCase())
 
-          const { buffer, background } = await encodeToWebp(item.file, item.kind, convertOptions(settings, item.kind))
-          await writeFile(dir.handle, decision.name, buffer)
+          const { outputs, background } = await encodeToWebp(item.file, item.kind, {
+            ...options,
+            targets: writes.map((p) => p.size),
+          })
+          for (let i = 0; i < writes.length; i++) await writeFile(dir.handle, writes[i].decision.name, outputs[i].buffer)
+          const skippedSizes = planned.length - writes.length
           setResult(item.id, {
             status: 'done',
-            outputPath,
-            outputSize: buffer.byteLength,
-            note: background ? backgroundNote(background) : undefined,
+            outputPath: pathOf(writes[0].decision.name),
+            outputCount: writes.length,
+            outputSize: outputs.reduce((sum, o) => sum + o.buffer.byteLength, 0),
+            note:
+              [
+                background && backgroundNote(background),
+                skippedSizes > 0 && `${skippedSizes}개 크기는 같은 이름이 있어 건너뜀`,
+              ]
+                .filter(Boolean)
+                .join(' · ') || undefined,
           })
         } catch (error) {
           setResult(item.id, { status: 'failed', error: (error as Error).message })

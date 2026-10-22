@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ModelProgress } from '../lib/aiBackground.ts'
+import type { Rect } from '../lib/crop.ts'
 import { encodeToWebp, onModelProgress } from '../lib/encoder.ts'
 import { backgroundNote, convertOptions, type ImageItem, type Settings } from '../store.ts'
 import type { ConvertOptions } from '../workers/encode.worker.ts'
@@ -7,6 +8,10 @@ import type { ConvertOptions } from '../workers/encode.worker.ts'
 export interface ResultPreview {
   url: string
   size: number
+  width: number
+  height: number
+  /** 여백 다듬기 결과가 원본의 어느 영역인지. 다듬지 않았으면 null */
+  trimmed: Rect | null
   /** 배경 제거 결과. 배경 제거를 쓰지 않았으면 null */
   note: string | null
   ms: number
@@ -21,6 +26,11 @@ interface Outcome {
   error?: string
 }
 
+function previewOptions(settings: Settings, item: ImageItem): ConvertOptions {
+  const options = convertOptions(settings, item)
+  return { ...options, targets: options.targets.slice(0, 1) }
+}
+
 /** 슬라이더를 끄는 동안 매번 변환하지 않도록, 설정이 이만큼 멈춰 있을 때 변환한다. */
 const DELAY_MS = 250
 
@@ -32,7 +42,8 @@ export function useResultPreview(item: ImageItem | undefined, settings: Settings
   const file = item?.file
   const kind = item?.kind
   const ready = Boolean(item?.width) && !item?.error
-  const key = kind ? JSON.stringify(convertOptions(settings, kind)) : ''
+  // 여러 크기로 출력할 때는 첫 번째 크기만 미리 본다.
+  const key = item ? JSON.stringify(previewOptions(settings, item)) : ''
 
   useEffect(() => {
     if (!file || !kind || !ready) return
@@ -44,14 +55,18 @@ export function useResultPreview(item: ImageItem | undefined, settings: Settings
       })
       const started = performance.now()
       try {
-        const { buffer, background } = await encodeToWebp(file, kind, options)
+        const { outputs, background, trimmed } = await encodeToWebp(file, kind, options)
         if (stale) return
+        const [{ buffer, width, height }] = outputs
         setOutcome({
           file,
           key,
           result: {
             url: URL.createObjectURL(new Blob([buffer], { type: 'image/webp' })),
             size: buffer.byteLength,
+            width,
+            height,
+            trimmed,
             note: background ? backgroundNote(background) : null,
             ms: performance.now() - started,
             options,

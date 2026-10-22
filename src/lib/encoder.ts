@@ -1,16 +1,19 @@
 import type {
   BackgroundResult,
   ConvertOptions,
+  EncodedImage,
   EncodeRequest,
   EncodeResponse,
   ModelProgressMessage,
 } from '../workers/encode.worker.ts'
+import type { Rect } from './crop.ts'
 import type { ModelProgress } from './aiBackground.ts'
 import type { ImageKind } from './imageFiles.ts'
 
 export interface EncodeResult {
-  buffer: ArrayBuffer
+  outputs: EncodedImage[]
   background: BackgroundResult | null
+  trimmed: Rect | null
 }
 
 let worker: Worker | null = null
@@ -35,7 +38,7 @@ function getWorker(): Worker {
     const request = pending.get(response.id)
     if (!request) return
     pending.delete(response.id)
-    if (response.ok) request.resolve({ buffer: response.buffer, background: response.background })
+    if (response.ok) request.resolve({ outputs: response.outputs, background: response.background, trimmed: response.trimmed })
     else request.reject(new Error(response.error))
   }
   worker.onerror = (event) => {

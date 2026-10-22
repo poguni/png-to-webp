@@ -3,7 +3,15 @@ import type { Settings } from '../store.ts'
 export const DEFAULT_SETTINGS: Settings = {
   background: { enabled: false, mode: 'auto', tolerance: 15, feather: 1, applyToJpg: false },
   crop: { ratio: 'original', custom: { width: 21, height: 9 }, anchor: { x: 0.5, y: 0.5 } },
-  resize: { size: 'original', custom: { width: 800, height: 600 }, fit: 'contain', noUpscale: true },
+  trim: { enabled: false, padding: 0, unit: 'px' },
+  resize: {
+    size: 'original',
+    custom: { width: 800, height: 600 },
+    fit: 'contain',
+    noUpscale: true,
+    multi: false,
+    sizes: [],
+  },
   quality: 80,
   lossless: false,
   alphaQuality: 100,
@@ -23,6 +31,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /** 기본값의 모양을 따라가며 value의 값을 고른다. 없거나 종류가 다른 값은 기본값을 쓴다. */
 function fill<T>(base: T, value: unknown): T {
+  if (Array.isArray(base)) return (Array.isArray(value) ? [...value] : base) as T
   if (!isObject(base)) return typeof value === typeof base ? (value as T) : base
   const source = isObject(value) ? value : {}
   const result: Record<string, unknown> = {}
@@ -41,6 +50,7 @@ export function completeSettings(value: unknown): Settings {
 /** 두 설정의 모든 값이 같은지 비교한다. */
 export function sameSettings(a: Settings, b: Settings): boolean {
   const equal = (x: unknown, y: unknown): boolean => {
+    if (Array.isArray(x) && Array.isArray(y)) return x.length === y.length && x.every((v, i) => equal(v, y[i]))
     if (!isObject(x) || !isObject(y)) return x === y
     const keys = Object.keys(x)
     return keys.length === Object.keys(y).length && keys.every((key) => equal(x[key], y[key]))
@@ -50,15 +60,18 @@ export function sameSettings(a: Settings, b: Settings): boolean {
 
 /**
  * 기본 프리셋 (F9-2)
- * 여백 다듬기와 다중 크기 출력은 C10에서 기능을 만든 뒤 반영한다.
+ * 게임 스프라이트는 PRD의 1:1 자르기 대신 자르지 않는다. 여백을 다듬은 뒤 1:1로 자르면 가로나 세로로 긴 피사체가
+ * 잘리기 때문이다. 512×512 Contain이 남는 공간을 투명하게 채워 정사각형을 만든다.
+ * 게임 스프라이트와 앱 아이콘 세트는 정해진 크기로 나와야 하므로 확대 금지를 끈다. 켜 두면 여백을 다듬어
+ * 작아진 피사체가 목표 크기로 맞춰지지 않는다.
  */
 export const BUILTIN_PRESETS: Preset[] = [
   {
     name: '게임 스프라이트',
     settings: completeSettings({
       background: { enabled: true, mode: 'auto' },
-      crop: { ratio: '1:1' },
-      resize: { size: '512x512', fit: 'contain' },
+      trim: { enabled: true, padding: 4, unit: 'px' },
+      resize: { size: '512x512', fit: 'contain', noUpscale: false },
       quality: 85,
     }),
   },
@@ -67,7 +80,13 @@ export const BUILTIN_PRESETS: Preset[] = [
     settings: completeSettings({
       background: { enabled: true, mode: 'ai' },
       crop: { ratio: '1:1' },
-      resize: { size: '512x512', fit: 'contain' },
+      resize: {
+        size: '512x512',
+        fit: 'contain',
+        noUpscale: false,
+        multi: true,
+        sizes: ['512x512', '256x256', '128x128', '64x64'],
+      },
       lossless: true,
     }),
   },

@@ -144,6 +144,11 @@ function FileRow({ item }: { item: ImageItem }) {
             {meta}
           </span>
         </span>
+        {item.overrides && (
+          <span className="rounded bg-[#1d2414] px-1.5 py-0.5 text-[10px] font-semibold text-accent" title="이 이미지만 따로 설정함">
+            개별
+          </span>
+        )}
         <span className="rounded bg-line px-1.5 py-0.5 text-[10px] font-semibold text-muted">{item.kind}</span>
       </button>
     </li>

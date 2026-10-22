@@ -164,7 +164,14 @@ function ResultRow({ id, item, batch }: { id: string; item: ImageItem | undefine
   const status = STATUS[result.status]
   const original = item?.file.size ?? 0
   const note =
-    result.error ?? [result.outputPath && `→ ${result.outputPath}`, result.note].filter(Boolean).join(' · ')
+    result.error ??
+    [
+      result.outputPath &&
+        `→ ${result.outputPath}${result.outputCount && result.outputCount > 1 ? ` 외 ${result.outputCount - 1}개` : ''}`,
+      result.note,
+    ]
+      .filter(Boolean)
+      .join(' · ')
   const saved =
     result.status === 'done' && result.outputSize !== undefined && original > 0
       ? `−${Math.round((1 - result.outputSize / original) * 100)}%`

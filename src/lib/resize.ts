@@ -8,6 +8,7 @@ export type SizePreset =
   | '512x512'
   | '256x256'
   | '128x128'
+  | '64x64'
   | 'custom'
 
 export const SIZE_PRESETS: SizePreset[] = [
@@ -18,6 +19,7 @@ export const SIZE_PRESETS: SizePreset[] = [
   '512x512',
   '256x256',
   '128x128',
+  '64x64',
   'custom',
 ]
 
@@ -35,6 +37,9 @@ export interface ResizeSettings {
   fit: FitMode
   /** 원본이 목표보다 작으면 키우지 않는다 (F5-3) */
   noUpscale: boolean
+  /** 여러 크기로 출력 (F5-5). 켜면 size 대신 sizes를 쓴다. */
+  multi: boolean
+  sizes: SizePreset[]
 }
 
 export interface Size {
@@ -52,6 +57,21 @@ export function targetSize(resize: ResizeSettings): Size | null {
   }
   const [width, height] = resize.size.split('x').map(Number)
   return { width, height }
+}
+
+/**
+ * 출력할 목표 크기 목록. null은 크기를 바꾸지 않는다는 뜻이다.
+ * 여러 크기로 출력할 때는 프리셋 순서대로 두고, 겹치는 크기는 한 번만 넣는다.
+ */
+export function targetSizes(resize: ResizeSettings): (Size | null)[] {
+  if (!resize.multi) return [targetSize(resize)]
+  const sizes: Size[] = []
+  for (const preset of SIZE_PRESETS) {
+    if (!resize.sizes.includes(preset)) continue
+    const size = targetSize({ ...resize, size: preset })
+    if (size && !sizes.some((s) => s.width === size.width && s.height === size.height)) sizes.push(size)
+  }
+  return sizes.length > 0 ? sizes : [null]
 }
 
 export interface ResizePlan {

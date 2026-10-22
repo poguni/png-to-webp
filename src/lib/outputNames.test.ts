@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { outputFileName, resolveName, type NamingOptions } from './outputNames.ts'
+import { outputFileName, resolveName, withSizeSuffix, type NamingOptions } from './outputNames.ts'
 
 const keep: NamingOptions = { case: 'keep', prefix: '', suffix: '' }
 const kebab: NamingOptions = { case: 'kebab', prefix: '', suffix: '' }
@@ -64,5 +64,12 @@ describe('resolveName', () => {
     for (const policy of ['number', 'overwrite', 'skip'] as const) {
       expect(resolveName('hero.webp', none, produced, policy)).toEqual({ action: 'write', name: 'hero-1.webp' })
     }
+  })
+})
+
+describe('withSizeSuffix', () => {
+  it('정사각형은 한 변, 그 밖에는 가로x세로를 붙인다 (F5-5)', () => {
+    expect(withSizeSuffix('hero.webp', { width: 512, height: 512 })).toBe('hero_512.webp')
+    expect(withSizeSuffix('bg.webp', { width: 1920, height: 1080 })).toBe('bg_1920x1080.webp')
   })
 })

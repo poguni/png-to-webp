@@ -70,3 +70,9 @@ describe('cropPixels', () => {
     expect(cropPixels(source, { x: 0, y: 0, width: 4, height: 2 })).toBe(source)
   })
 })
+
+describe('cropRect scale (F4-3)', () => {
+  it('가장 큰 영역을 scale만큼 줄이고 기준 위치에 놓는다', () => {
+    expect(cropRect(1600, 1200, 1, { x: 0.25, y: 1 }, 0.5)).toEqual({ x: 250, y: 600, width: 600, height: 600 })
+  })
+})

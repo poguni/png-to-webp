@@ -2,10 +2,10 @@ export type RatioPreset = 'original' | '16:9' | '9:16' | '4:3' | '3:4' | '1:1' |
 
 export const RATIO_PRESETS: RatioPreset[] = ['original', '16:9', '9:16', '4:3', '3:4', '1:1', 'custom']
 
-/** 자르기 기준 위치. 0은 왼쪽(위), 0.5는 가운데, 1은 오른쪽(아래) */
+/** 자르기 기준 위치. 0은 왼쪽(위), 0.5는 가운데, 1은 오른쪽(아래). 이미지별로 끌어 옮기면 그 사이 값도 쓴다. */
 export interface Anchor {
-  x: 0 | 0.5 | 1
-  y: 0 | 0.5 | 1
+  x: number
+  y: number
 }
 
 export interface CropSettings {
@@ -35,15 +35,20 @@ export function ratioOf(crop: CropSettings): number | null {
 
 /**
  * 이미지 안에서 비율에 맞는 가장 큰 영역을 기준 위치에 맞춰 잡는다. (F4-1, F4-2)
+ * scale이 1보다 작으면 그 비율만큼 줄인 영역을 잡는다. (F4-3 이미지별 조정)
  * 예: 1600×1200에 16:9 가운데 → x 0, y 150, 1600×900
  */
-export function cropRect(width: number, height: number, ratio: number | null, anchor: Anchor): Rect {
+export function cropRect(width: number, height: number, ratio: number | null, anchor: Anchor, scale = 1): Rect {
   if (ratio === null) return { x: 0, y: 0, width, height }
 
   let cropWidth = width
   let cropHeight = height
   if (width / height > ratio) cropWidth = Math.max(1, Math.min(width, Math.round(height * ratio)))
   else cropHeight = Math.max(1, Math.min(height, Math.round(width / ratio)))
+  if (scale < 1) {
+    cropWidth = Math.max(1, Math.round(cropWidth * scale))
+    cropHeight = Math.max(1, Math.round(cropHeight * scale))
+  }
 
   return {
     x: Math.round((width - cropWidth) * anchor.x),

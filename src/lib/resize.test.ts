@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { placePixels, resizePlan, targetSize, type ResizeSettings } from './resize.ts'
+import { placePixels, resizePlan, targetSize, targetSizes, type ResizeSettings } from './resize.ts'
 
 function settings(patch: Partial<ResizeSettings>): ResizeSettings {
-  return { size: 'original', custom: { width: 800, height: 600 }, fit: 'contain', noUpscale: true, ...patch }
+  return { size: 'original', custom: { width: 800, height: 600 }, fit: 'contain', noUpscale: true, multi: false, sizes: [], ...patch }
 }
 
 describe('targetSize', () => {
@@ -96,5 +96,32 @@ describe('placePixels', () => {
     const alpha = [...result.data].filter((_, i) => i % 4 === 3)
     expect(alpha).toEqual([0, 0, 0, 255, 0, 0])
     expect([...result.data.subarray(12, 16)]).toEqual([10, 20, 30, 255])
+  })
+})
+
+describe('targetSizes', () => {
+  const base: ResizeSettings = {
+    size: '512x512',
+    custom: { width: 300, height: 200 },
+    fit: 'contain',
+    noUpscale: true,
+    multi: false,
+    sizes: [],
+  }
+
+  it('하나만 출력할 때는 지금 크기 하나', () => {
+    expect(targetSizes(base)).toEqual([{ width: 512, height: 512 }])
+  })
+
+  it('여러 크기는 프리셋 순서로, 겹치는 크기는 한 번만', () => {
+    const sizes = targetSizes({ ...base, multi: true, sizes: ['64x64', 'custom', '512x512'], custom: { width: 64, height: 64 } })
+    expect(sizes).toEqual([
+      { width: 512, height: 512 },
+      { width: 64, height: 64 },
+    ])
+  })
+
+  it('여러 크기인데 고른 것이 없으면 크기를 바꾸지 않는다', () => {
+    expect(targetSizes({ ...base, multi: true, sizes: [] })).toEqual([null])
   })
 })

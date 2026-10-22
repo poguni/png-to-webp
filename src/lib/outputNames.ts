@@ -39,6 +39,12 @@ export function outputFileName(sourceName: string, naming: NamingOptions): strin
   return `${base || 'image'}.webp`
 }
 
+/** 여러 크기로 출력할 때 이름 끝에 크기를 붙인다. 예: `hero.webp` → `hero_512.webp`, `bg_1920x1080.webp` (F5-5) */
+export function withSizeSuffix(fileName: string, size: { width: number; height: number }): string {
+  const label = size.width === size.height ? `${size.width}` : `${size.width}x${size.height}`
+  return `${fileName.slice(0, -'.webp'.length)}_${label}.webp`
+}
+
 /**
  * 저장할 이름을 정한다. 이름 비교는 대소문자를 구분하지 않는다(Windows 기준).
  * @param existing 폴더에 원래 있던 파일 이름 (소문자)

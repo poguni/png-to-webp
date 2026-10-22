@@ -3,7 +3,8 @@ import type { BackgroundMode, BackgroundSettings } from '../lib/background.ts'
 import { RATIO_PRESETS, type Anchor, type CropSettings, type RatioPreset } from '../lib/crop.ts'
 import { OUTPUT_DIR } from '../lib/imageFiles.ts'
 import { outputFileName, type ConflictPolicy, type NameCase } from '../lib/outputNames.ts'
-import { SIZE_PRESETS, targetSize, type FitMode, type ResizeSettings } from '../lib/resize.ts'
+import { SIZE_PRESETS, targetSize, type FitMode, type ResizeSettings, type SizePreset } from '../lib/resize.ts'
+import type { PaddingUnit, TrimSettings } from '../lib/trim.ts'
 import { useAppStore } from '../store.ts'
 
 /** 품질 프리셋 (F6-5). value가 null이면 무손실 */
@@ -30,6 +31,7 @@ export default function SettingsPanel() {
   return (
     <aside className="flex grow basis-[320px] flex-col border-line bg-panel lg:overflow-y-auto lg:border-l">
       <BackgroundSection />
+      <TrimSection />
       <CropSection />
       <ResizeSection />
 
@@ -302,6 +304,54 @@ function BackgroundSection() {
   )
 }
 
+function TrimSection() {
+  const trim = useAppStore((s) => s.settings.trim)
+  const { updateSettings } = useAppStore.getState()
+  const setTrim = (patch: Partial<TrimSettings>) => updateSettings({ trim: { ...trim, ...patch } })
+
+  return (
+    <Section
+      title="여백 다듬기"
+      action={
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={trim.enabled}
+            onChange={(e) => setTrim({ enabled: e.target.checked })}
+            className="size-[15px] accent-accent"
+          />
+          사용
+        </label>
+      }
+    >
+      <p className="m-0 text-xs text-subtle">투명한 가장자리를 잘라 피사체에 딱 맞춘 뒤, 사방에 여백을 더합니다.</p>
+      <div className={`flex items-end gap-2 ${trim.enabled ? '' : 'opacity-50'}`}>
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs text-muted">
+          여백
+          <input
+            type="number"
+            min={0}
+            value={trim.padding}
+            disabled={!trim.enabled}
+            onChange={(e) => setTrim({ padding: Math.max(0, Number(e.target.value)) })}
+            className={inputClass}
+          />
+        </label>
+        <select
+          value={trim.unit}
+          disabled={!trim.enabled}
+          aria-label="여백 단위"
+          onChange={(e) => setTrim({ unit: e.target.value as PaddingUnit })}
+          className={selectClass.replace('w-full', 'w-[150px] shrink-0')}
+        >
+          <option value="px">px</option>
+          <option value="%">% (긴 변 기준)</option>
+        </select>
+      </div>
+    </Section>
+  )
+}
+
 const RATIO_LABELS: Record<RatioPreset, string> = {
   original: '원본',
   '16:9': '16:9',
@@ -423,7 +473,21 @@ function ResizeSection() {
   const { updateSettings } = useAppStore.getState()
   const setResize = (patch: Partial<ResizeSettings>) => updateSettings({ resize: { ...resize, ...patch } })
   const target = targetSize(resize)
-  const active = resize.size !== 'original'
+  const { multi } = resize
+  const active = multi ? resize.sizes.length > 0 : resize.size !== 'original'
+  const isSelected = (size: SizePreset) => (multi ? resize.sizes.includes(size) : resize.size === size)
+
+  function handleSize(size: SizePreset) {
+    if (!multi) setResize({ size })
+    else if (resize.sizes.includes(size)) setResize({ sizes: resize.sizes.filter((s) => s !== size) })
+    else setResize({ sizes: [...resize.sizes, size] })
+  }
+
+  function handleMulti(on: boolean) {
+    // 켤 때는 지금 고른 크기에서 시작한다.
+    if (on) setResize({ multi: true, sizes: resize.size === 'original' ? [] : [resize.size] })
+    else setResize({ multi: false })
+  }
 
   return (
     <Section title="크기 조절">
@@ -432,10 +496,12 @@ function ResizeSection() {
           <button
             key={size}
             type="button"
-            aria-pressed={resize.size === size}
-            onClick={() => setResize({ size })}
-            className={`h-8 rounded-lg border px-2.5 text-xs ${size.includes('x') ? 'font-mono' : ''} ${
-              resize.size === size
+            aria-pressed={isSelected(size)}
+            // 여러 크기로 출력할 때 원본 크기는 고를 수 없다.
+            disabled={multi && size === 'original'}
+            onClick={() => handleSize(size)}
+            className={`h-8 rounded-lg border px-2.5 text-xs disabled:opacity-40 ${size.includes('x') ? 'font-mono' : ''} ${
+              isSelected(size)
                 ? 'border-accent bg-[#1d2414] font-semibold text-accent'
                 : 'border-line-strong text-muted hover:text-ink'
             }`}
@@ -444,8 +510,20 @@ function ResizeSection() {
           </button>
         ))}
       </div>
+      <label className="flex items-center gap-2 text-xs text-muted">
+        <input
+          type="checkbox"
+          checked={multi}
+          onChange={(e) => handleMulti(e.target.checked)}
+          className="size-[15px] accent-accent"
+        />
+        여러 크기로 출력 (예: hero_512.webp, hero_256.webp)
+      </label>
+      {multi && resize.sizes.length === 0 && (
+        <p className="m-0 text-xs text-danger">출력할 크기를 하나 이상 고르세요. 고르지 않으면 원본 크기로 저장합니다.</p>
+      )}
 
-      {resize.size === 'custom' && (
+      {isSelected('custom') && (
         <div className="flex items-end gap-2">
           <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs text-muted">
             가로 (px)
@@ -493,7 +571,7 @@ function ResizeSection() {
           ))}
         </div>
         <p className="m-0 text-xs text-subtle">
-          {active ? fitHint(resize.fit, target && Math.max(target.width, target.height)) : '크기를 고르면 맞춤 방식을 정할 수 있습니다.'}
+          {active ? fitHint(resize.fit, !multi && target ? Math.max(target.width, target.height) : null) : '크기를 고르면 맞춤 방식을 정할 수 있습니다.'}
         </p>
         <label className="flex items-center gap-2 text-xs text-muted">
           <input

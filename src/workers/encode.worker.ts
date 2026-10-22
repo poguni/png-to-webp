@@ -10,19 +10,24 @@ import {
   type BackgroundKind,
   type BackgroundMode,
 } from '../lib/background.ts'
-import { cropPixels, cropRect, type Anchor, type Pixels } from '../lib/crop.ts'
+import { cropPixels, cropRect, type Anchor, type Pixels, type Rect } from '../lib/crop.ts'
 import type { ImageKind } from '../lib/imageFiles.ts'
 import { placePixels, resizePlan, type FitMode, type Size } from '../lib/resize.ts'
+import { trimPixels, type PaddingUnit } from '../lib/trim.ts'
 
-/** 변환 단계별 옵션. 파이프라인: 디코딩 → 배경 제거 → 자르기 → 크기 조절 → WebP 인코딩 */
+/** 변환 단계별 옵션. 파이프라인: 디코딩 → 배경 제거 → 여백 다듬기 → 자르기 → 크기 조절 → WebP 인코딩 */
 export interface ConvertOptions {
   /** null이면 배경을 지우지 않는다. */
   background: { mode: BackgroundMode; tolerance: number; feather: number } | null
+  /** null이면 여백을 다듬지 않는다. */
+  trim: { padding: number; unit: PaddingUnit } | null
   /** 자를 가로/세로 비율. null이면 자르지 않는다. */
   ratio: number | null
   anchor: Anchor
-  /** 목표 크기. null이면 크기를 바꾸지 않는다. */
-  target: Size | null
+  /** 자르기 영역 크기. 1이면 비율에 맞는 가장 큰 영역 */
+  cropScale: number
+  /** 출력할 목표 크기들. 크기마다 파일을 하나씩 만든다. null이면 크기를 바꾸지 않는다. */
+  targets: (Size | null)[]
   fit: FitMode
   noUpscale: boolean
   /** 손실 압축 품질 0~100 (F6-1). 무손실이면 쓰지 않는다. */
@@ -48,8 +53,22 @@ export interface BackgroundResult {
   method: 'color' | 'ai' | null
 }
 
+export interface EncodedImage {
+  buffer: ArrayBuffer
+  width: number
+  height: number
+}
+
 export type EncodeResponse =
-  | { id: number; ok: true; buffer: ArrayBuffer; background: BackgroundResult | null }
+  | {
+      id: number
+      ok: true
+      /** targets와 같은 순서 */
+      outputs: EncodedImage[]
+      background: BackgroundResult | null
+      /** 여백 다듬기 결과가 원본의 어느 영역인지. 다듬지 않았으면 null */
+      trimmed: Rect | null
+    }
   | { id: number; ok: false; error: string }
 
 /** AI 모델을 처음 내려받는 동안 보내는 진행률 */
@@ -105,12 +124,12 @@ async function background(image: Pixels, options: ConvertOptions): Promise<{ ima
 }
 
 function crop(image: Pixels, options: ConvertOptions): Pixels {
-  return cropPixels(image, cropRect(image.width, image.height, options.ratio, options.anchor))
+  return cropPixels(image, cropRect(image.width, image.height, options.ratio, options.anchor, options.cropScale))
 }
 
 /** 고품질(mks2013 필터)로 크기를 바꾸고, Contain이면 투명한 여백 위에 놓는다. */
-async function resize(image: Pixels, options: ConvertOptions): Promise<Pixels> {
-  const plan = resizePlan(image.width, image.height, options.target, options.fit, options.noUpscale)
+async function resize(image: Pixels, target: Size | null, options: ConvertOptions): Promise<Pixels> {
+  const plan = resizePlan(image.width, image.height, target, options.fit, options.noUpscale)
   if (!plan) return image
   const source = cropPixels(image, plan.source)
   const resized =
@@ -161,15 +180,21 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
   }
 
   try {
-    const result = await resize(crop(cleared.image, options), options)
-    const buffer = await encodeWebp(toImageData(result), {
-      quality: options.quality,
-      lossless: options.lossless ? 1 : 0,
-      alpha_quality: options.alphaQuality,
-      method: options.effort,
-    })
-    const response: EncodeResponse = { id, ok: true, buffer, background: cleared.result }
-    self.postMessage(response, { transfer: [buffer] })
+    const trimmed = options.trim ? trimPixels(cleared.image, options.trim.padding, options.trim.unit) : null
+    const cropped = crop(trimmed?.image ?? cleared.image, options)
+    const outputs: EncodedImage[] = []
+    for (const target of options.targets) {
+      const result = await resize(cropped, target, options)
+      const buffer = await encodeWebp(toImageData(result), {
+        quality: options.quality,
+        lossless: options.lossless ? 1 : 0,
+        alpha_quality: options.alphaQuality,
+        method: options.effort,
+      })
+      outputs.push({ buffer, width: result.width, height: result.height })
+    }
+    const response: EncodeResponse = { id, ok: true, outputs, background: cleared.result, trimmed: trimmed?.rect ?? null }
+    self.postMessage(response, { transfer: outputs.map((o) => o.buffer) })
   } catch (error) {
     fail(id, `WebP로 변환하지 못했습니다. (${(error as Error).message})`)
   }

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { useElementSize } from '../hooks/useElementSize.ts'
 import { useResultPreview } from '../hooks/useResultPreview.ts'
-import { cropRect, ratioOf, type Rect } from '../lib/crop.ts'
+import type { BackgroundMode } from '../lib/background.ts'
+import type { Rect } from '../lib/crop.ts'
 import { formatBytes } from '../lib/format.ts'
-import { resultPlacement } from '../lib/preview.ts'
-import { resizePlan, targetSize } from '../lib/resize.ts'
-import { useAppStore } from '../store.ts'
+import { cropInSource, cropOverride, resultPlacement } from '../lib/preview.ts'
+import { resizePlan } from '../lib/resize.ts'
+import { convertOptions, useAppStore, type ImageOverrides } from '../store.ts'
 import { AlertIcon } from './icons.tsx'
 
 type ViewMode = 'compare' | 'original' | 'result'
@@ -16,6 +17,16 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: 'original', label: '원본' },
   { value: 'result', label: '결과' },
 ]
+
+const IMAGE_BACKGROUNDS: { value: BackgroundMode | 'off'; label: string }[] = [
+  { value: 'off', label: '지우지 않음' },
+  { value: 'auto', label: '자동' },
+  { value: 'solid', label: '단색' },
+  { value: 'checker', label: '체커보드' },
+  { value: 'ai', label: 'AI' },
+]
+
+const smallButton = 'h-8 rounded-lg border border-line-strong px-2.5 text-xs text-ink hover:border-[#3a404b]'
 
 /** 투명 영역 뒤에 깔 배경 (F2-3) */
 const BACKDROPS: { value: Backdrop; label: string; className: string }[] = [
@@ -31,6 +42,7 @@ export default function PreviewPanel() {
   const [mode, setMode] = useState<ViewMode>('compare')
   const [backdrop, setBackdrop] = useState<Backdrop>('checker')
   const [split, setSplit] = useState(0.5)
+  const drag = useRef<{ kind: 'move' | 'resize'; x: number; y: number; start: Rect } | null>(null)
   const file = item?.file
   const ready = Boolean(item?.width)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -56,20 +68,55 @@ export default function PreviewPanel() {
 
   const width = item.width ?? 0
   const height = item.height ?? 0
-  const ratio = ratioOf(settings.crop)
-  const rect = ready ? cropRect(width, height, ratio, settings.crop.anchor) : null
-  const cropped = rect !== null && ratio !== null && (rect.width !== width || rect.height !== height)
-  const plan = rect ? resizePlan(rect.width, rect.height, targetSize(settings.resize), settings.resize.fit, settings.resize.noUpscale) : null
-  const final = plan ?? rect
+  const full: Rect = { x: 0, y: 0, width, height }
   const result = preview.result
+  const options = convertOptions(settings, item)
+  const { ratio } = options
+  // 자르기는 여백을 다듬은 이미지에 적용한다. 다듬은 영역은 픽셀을 봐야 알 수 있으므로 최근 미리보기 결과를 쓴다.
+  const base = settings.trim.enabled && result?.trimmed ? result.trimmed : full
+  const rect = ready ? cropInSource(base, ratio, options.anchor, options.cropScale) : null
+  const outlined = rect !== null && (rect.x !== 0 || rect.y !== 0 || rect.width !== width || rect.height !== height)
+  const plan = rect
+    ? resizePlan(rect.width, rect.height, options.targets[0], options.fit, options.noUpscale)
+    : null
+  // 결과가 최신이면 실제 크기를, 아니면 설정으로 계산한 크기를 보여 준다.
+  const final = result && !preview.updating ? result : (plan ?? rect)
+  const sizeCount = options.targets.length
   const backdropClass = BACKDROPS.find((b) => b.value === backdrop)!.className
 
   // 결과는 그 결과를 만든 설정으로 원본 위에 겹친다. 설정을 바꾸는 중에도 어긋나지 않는다.
   let placement: Rect | null = null
   if (result && ready) {
     const o = result.options
-    const r = cropRect(width, height, o.ratio, o.anchor)
-    placement = resultPlacement(r, resizePlan(r.width, r.height, o.target, o.fit, o.noUpscale))
+    const r = cropInSource(result.trimmed ?? full, o.ratio, o.anchor, o.cropScale)
+    placement = resultPlacement(r, resizePlan(r.width, r.height, o.targets[0], o.fit, o.noUpscale))
+  }
+
+  const { setOverrides } = useAppStore.getState()
+  const setOverride = (patch: ImageOverrides) => setOverrides(item.id, patch)
+  const canDragCrop = mode === 'original' && ratio !== null && rect !== null
+
+  function startCropDrag(e: PointerEvent<HTMLElement>, kind: 'move' | 'resize') {
+    if (!rect) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    drag.current = { kind, x: e.clientX, y: e.clientY, start: rect }
+  }
+
+  function moveCropDrag(e: PointerEvent<HTMLElement>) {
+    const d = drag.current
+    if (!d || ratio === null || scale === 0) return
+    const dx = (e.clientX - d.x) / scale
+    const dy = (e.clientY - d.y) / scale
+    let next: Rect
+    if (d.kind === 'move') {
+      next = { ...d.start, x: d.start.x + dx, y: d.start.y + dy }
+    } else {
+      // 왼쪽 위를 고정하고, 비율을 지키며 모서리를 따라 늘리거나 줄인다.
+      const w = Math.max(d.start.width + dx, (d.start.height + dy) * (d.start.width / d.start.height))
+      next = { ...d.start, width: w, height: w / (d.start.width / d.start.height) }
+    }
+    setOverride({ crop: cropOverride(base, ratio, next) })
   }
 
   // 결과만 볼 때는 결과 크기에 맞추고, 그 밖에는 원본 크기에 맞춘다. 작은 이미지는 키우지 않는다.
@@ -177,19 +224,33 @@ export default function PreviewPanel() {
                 draggable={false}
                 style={mode === 'compare' ? { clipPath: `inset(0 ${(1 - split) * 100}% 0 0)` } : undefined}
               />
-              {mode === 'original' && cropped && rect && (
+              {mode === 'original' && outlined && rect && (
                 <div
-                  className="pointer-events-none absolute border-2 border-accent shadow-[0_0_0_9999px_rgba(14,16,20,0.62)]"
+                  className={`absolute border-2 border-accent shadow-[0_0_0_9999px_rgba(14,16,20,0.62)] ${
+                    canDragCrop ? 'cursor-move touch-none' : 'pointer-events-none'
+                  }`}
                   style={{
                     left: rect.x * scale,
                     top: rect.y * scale,
                     width: rect.width * scale,
                     height: rect.height * scale,
                   }}
+                  onPointerDown={canDragCrop ? (e) => startCropDrag(e, 'move') : undefined}
+                  onPointerMove={canDragCrop ? moveCropDrag : undefined}
+                  onPointerUp={() => (drag.current = null)}
                 >
-                  <span className="absolute top-1.5 left-1.5 rounded bg-accent px-1.5 py-0.5 font-mono text-[11px] font-medium text-ground">
+                  <span className="pointer-events-none absolute top-1.5 left-1.5 rounded bg-accent px-1.5 py-0.5 font-mono text-[11px] font-medium text-ground">
                     {rect.width}×{rect.height}
                   </span>
+                  {canDragCrop && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-2 -bottom-2 size-4 cursor-nwse-resize touch-none rounded-sm border-2 border-ground bg-accent"
+                      onPointerDown={(e) => startCropDrag(e, 'resize')}
+                      onPointerMove={moveCropDrag}
+                      onPointerUp={() => (drag.current = null)}
+                    />
+                  )}
                 </div>
               )}
               {mode === 'compare' && (
@@ -242,7 +303,7 @@ export default function PreviewPanel() {
         {mode !== 'result' && (
           <span className="absolute top-3.5 left-3.5 rounded-md bg-ground/80 px-2.5 py-1 text-xs">
             원본 · {item.kind}
-            {mode === 'original' && cropped && ' · 자르기 미리보기'}
+            {mode === 'original' && outlined && (canDragCrop ? ' · 끌어서 옮기기, 모서리로 크기 조절' : ' · 결과 영역')}
           </span>
         )}
         {mode !== 'original' && (
@@ -253,6 +314,45 @@ export default function PreviewPanel() {
         )}
       </div>
 
+      {/* 이 이미지에만 적용하는 설정 (S4, F4-3) */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-xs text-muted">
+        <span className="font-semibold text-ink">이 이미지만</span>
+        <label className="flex items-center gap-2">
+          배경 제거
+          <select
+            value={item.overrides?.background ?? ''}
+            onChange={(e) => setOverride({ background: (e.target.value || undefined) as ImageOverrides['background'] })}
+            className={`${smallButton} bg-surface focus:border-accent focus:outline-none`}
+          >
+            <option value="">전체 설정 따름</option>
+            {IMAGE_BACKGROUNDS.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="flex items-center gap-2">
+          자르기 영역
+          {ratio === null ? (
+            <span className="text-subtle">비율을 고르면 조정할 수 있습니다</span>
+          ) : item.overrides?.crop ? (
+            <>
+              <span className="text-accent">직접 조정함</span>
+              <button type="button" onClick={() => setOverride({ crop: undefined })} className={smallButton}>
+                되돌리기
+              </button>
+            </>
+          ) : mode === 'original' ? (
+            <span className="text-subtle">위의 영역을 끌어서 조정하세요</span>
+          ) : (
+            <button type="button" onClick={() => setMode('original')} className={smallButton}>
+              원본 보기에서 조정
+            </button>
+          )}
+        </span>
+      </div>
+
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
         <InfoCard label="파일 용량">
           <Change
@@ -261,7 +361,7 @@ export default function PreviewPanel() {
             extra={saved === null ? null : saved >= 0 ? `−${saved}%` : `+${-saved}%`}
           />
         </InfoCard>
-        <InfoCard label="해상도">
+        <InfoCard label={sizeCount > 1 ? `해상도 (${sizeCount}개 크기 중 첫 번째)` : '해상도'}>
           {!ready || !final ? (
             <span className="font-mono text-lg font-medium">확인 중</span>
           ) : (

@@ -42,14 +42,26 @@ describe('sameSettings', () => {
     const reordered = { ...DEFAULT_SETTINGS, crop: { anchor: { y: 0.5, x: 0.5 }, custom: { height: 9, width: 21 }, ratio: 'original' } }
     expect(sameSettings(DEFAULT_SETTINGS, reordered as typeof DEFAULT_SETTINGS)).toBe(true)
     expect(sameSettings(DEFAULT_SETTINGS, { ...DEFAULT_SETTINGS, quality: 81 })).toBe(false)
+    const withSizes = (sizes: typeof DEFAULT_SETTINGS.resize.sizes) => ({ ...DEFAULT_SETTINGS, resize: { ...DEFAULT_SETTINGS.resize, sizes } })
+    expect(sameSettings(withSizes(['64x64']), withSizes(['64x64']))).toBe(true)
+    expect(sameSettings(withSizes(['64x64']), withSizes(['128x128']))).toBe(false)
   })
 })
 
 describe('기본 프리셋 (F9-2)', () => {
   it('4종의 핵심 값', () => {
     const byName = Object.fromEntries(BUILTIN_PRESETS.map((p) => [p.name, p.settings]))
-    expect(byName['게임 스프라이트']).toMatchObject({ crop: { ratio: '1:1' }, resize: { size: '512x512', fit: 'contain' }, quality: 85 })
-    expect(byName['앱 아이콘 세트']).toMatchObject({ background: { enabled: true, mode: 'ai' }, lossless: true })
+    expect(byName['게임 스프라이트']).toMatchObject({
+      trim: { enabled: true, padding: 4, unit: 'px' },
+      resize: { size: '512x512', fit: 'contain' },
+      quality: 85,
+    })
+    expect(byName['앱 아이콘 세트']).toMatchObject({
+      background: { enabled: true, mode: 'ai' },
+      crop: { ratio: '1:1' },
+      resize: { multi: true, sizes: ['512x512', '256x256', '128x128', '64x64'] },
+      lossless: true,
+    })
     expect(byName['웹 배경 이미지']).toMatchObject({ background: { enabled: false }, resize: { size: '1920x1080', fit: 'cover' }, quality: 75 })
     expect(byName['모바일 세로 배경']).toMatchObject({ crop: { ratio: '9:16' }, resize: { size: '1080x1920', fit: 'cover' }, quality: 75 })
   })
@@ -61,7 +73,8 @@ describe('내 프리셋 저장과 불러오기', () => {
     const settings = completeSettings({
       background: { enabled: true, mode: 'checker', tolerance: 33, feather: 2, applyToJpg: true },
       crop: { ratio: 'custom', custom: { width: 5, height: 4 }, anchor: { x: 1, y: 0 } },
-      resize: { size: 'custom', custom: { width: 300, height: 200 }, fit: 'long', noUpscale: false },
+      trim: { enabled: true, padding: 5, unit: '%' },
+      resize: { size: 'custom', custom: { width: 300, height: 200 }, fit: 'long', noUpscale: false, multi: true, sizes: ['64x64', 'custom'] },
       quality: 42,
       lossless: true,
       alphaQuality: 70,
