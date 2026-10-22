@@ -45,6 +45,8 @@ export interface EncodeRequest {
   file: File
   kind: ImageKind
   options: ConvertOptions
+  /** false면 AI가 필요할 때 처리하지 않고 needsAi로 돌려준다. AI 모델은 Worker 하나에만 올린다. */
+  allowAi: boolean
 }
 
 /** 배경 제거 결과. method가 null이면 지우지 않았고, 이유는 kind로 알 수 있다. */
@@ -70,6 +72,8 @@ export type EncodeResponse =
       trimmed: Rect | null
     }
   | { id: number; ok: false; error: string }
+  /** AI가 필요하지만 이 Worker에서는 쓸 수 없다. AI를 쓰는 Worker에 다시 맡겨야 한다. */
+  | { id: number; ok: false; needsAi: true }
 
 /** AI 모델을 처음 내려받는 동안 보내는 진행률 */
 export interface ModelProgressMessage extends ModelProgress {
@@ -97,7 +101,12 @@ async function decode(file: File, kind: ImageKind): Promise<ImageData> {
   }
 }
 
-async function background(image: Pixels, options: ConvertOptions): Promise<{ image: Pixels; result: BackgroundResult | null }> {
+/** AI가 필요한데 allowAi가 false면 null을 돌려준다. */
+async function background(
+  image: Pixels,
+  options: ConvertOptions,
+  allowAi: boolean,
+): Promise<{ image: Pixels; result: BackgroundResult | null } | null> {
   if (!options.background) return { image, result: null }
   const { mode, tolerance, feather } = options.background
   const detection = detectBackground(image)
@@ -107,6 +116,7 @@ async function background(image: Pixels, options: ConvertOptions): Promise<{ ima
     return { image: removeBackground(image, colors, tolerance, feather), result: { kind: detection.kind, method: 'color' } }
   }
   if (!shouldUseAi(detection, mode)) return { image, result: { kind: detection.kind, method: null } }
+  if (!allowAi) return null
 
   // AI 모듈(모델 포함)은 AI를 쓸 때만 불러온다.
   try {
@@ -162,7 +172,7 @@ function fail(id: number, error: string) {
 }
 
 self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
-  const { id, file, kind, options } = event.data
+  const { id, file, kind, options, allowAi } = event.data
   let image: ImageData
   try {
     image = await decode(file, kind)
@@ -173,9 +183,14 @@ self.onmessage = async (event: MessageEvent<EncodeRequest>) => {
 
   let cleared
   try {
-    cleared = await background(image, options)
+    cleared = await background(image, options, allowAi)
   } catch (error) {
     fail(id, (error as Error).message)
+    return
+  }
+  if (!cleared) {
+    const response: EncodeResponse = { id, ok: false, needsAi: true }
+    self.postMessage(response)
     return
   }
 

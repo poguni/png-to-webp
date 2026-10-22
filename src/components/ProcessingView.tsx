@@ -8,6 +8,7 @@ const STATUS: Record<ResultStatus, { label: string; className: string }> = {
   done: { label: '완료', className: 'bg-[#1b2614] text-[#9be15d]' },
   failed: { label: '실패', className: 'bg-[#2a1719] text-danger' },
   skipped: { label: '건너뜀', className: 'bg-raised text-[#f5b84a]' },
+  cancelled: { label: '취소됨', className: 'bg-raised text-muted' },
 }
 
 function formatDuration(ms: number): string {
@@ -22,6 +23,7 @@ function summarize(batch: Batch, items: Map<string, ImageItem>) {
   const done = count('done')
   const failed = count('failed')
   const skipped = count('skipped')
+  const cancelled = count('cancelled')
   const finished = done + failed + skipped
 
   let before = 0
@@ -36,14 +38,16 @@ function summarize(batch: Batch, items: Map<string, ImageItem>) {
 
   const elapsed = (batch.finishedAt ?? Date.now()) - batch.startedAt
   const remaining = finished > 0 ? (elapsed / finished) * (batch.ids.length - finished) : null
-  const current = batch.ids.find((id) => batch.results[id].status === 'running')
+  // 여러 장을 동시에 처리하므로 첫 파일 이름과 나머지 개수를 보여 준다.
+  const running = batch.ids.filter((id) => batch.results[id].status === 'running')
+  const current = running.length > 1 ? `${running[0]} 외 ${running.length - 1}개` : running[0]
 
-  return { done, failed, skipped, finished, before, after, elapsed, remaining, current }
+  return { done, failed, skipped, cancelled, finished, before, after, elapsed, remaining, current }
 }
 
 export default function ProcessingView({ batch }: { batch: Batch }) {
   const items = useAppStore((s) => s.items)
-  const { closeBatch } = useAppStore.getState()
+  const { closeBatch, cancelBatch } = useAppStore.getState()
   const byId = new Map(items.map((item) => [item.id, item]))
   const s = summarize(batch, byId)
   const running = batch.finishedAt === undefined
@@ -55,9 +59,13 @@ export default function ProcessingView({ batch }: { batch: Batch }) {
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1">
-            <div className={`flex items-center gap-2 text-[13px] ${running ? 'text-accent' : 'text-[#9be15d]'}`}>
-              <span className={`size-2 rounded-full ${running ? 'bg-accent' : 'bg-[#9be15d]'}`} />
-              {running ? '처리 중' : '처리 완료'}
+            <div
+              className={`flex items-center gap-2 text-[13px] ${
+                batch.cancelled ? 'text-muted' : running ? 'text-accent' : 'text-[#9be15d]'
+              }`}
+            >
+              <span className="size-2 rounded-full bg-current" />
+              {running ? (batch.cancelled ? '취소하는 중' : '처리 중') : batch.cancelled ? '처리 취소됨' : '처리 완료'}
             </div>
             <h1 className="m-0 font-mono text-[34px] font-bold tracking-tight">
               {s.finished} <span className="text-[#5b6270]">/ {total}</span>
@@ -75,6 +83,16 @@ export default function ProcessingView({ batch }: { batch: Batch }) {
             )}
           </p>
           <div className="flex-1" />
+          {running && (
+            <button
+              type="button"
+              onClick={cancelBatch}
+              disabled={batch.cancelled}
+              className="h-[42px] rounded-[10px] border border-line-strong bg-surface px-[18px] text-sm font-medium hover:border-danger hover:text-danger disabled:opacity-50"
+            >
+              {batch.cancelled ? '취소하는 중…' : '취소'}
+            </button>
+          )}
           {!running && (
             <button
               type="button"
@@ -110,6 +128,7 @@ export default function ProcessingView({ batch }: { batch: Batch }) {
         <StatCard label="완료" value={String(s.done)} />
         <StatCard label="실패" value={String(s.failed)} danger={s.failed > 0} />
         {s.skipped > 0 && <StatCard label="건너뜀" value={String(s.skipped)} />}
+        {s.cancelled > 0 && <StatCard label="취소됨" value={String(s.cancelled)} />}
         <StatCard
           label={running ? '남은 시간' : '걸린 시간'}
           value={running ? (s.remaining === null ? '계산 중' : `약 ${formatDuration(s.remaining)}`) : formatDuration(s.elapsed)}

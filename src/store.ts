@@ -3,7 +3,7 @@ import type { BackgroundMode, BackgroundSettings } from './lib/background.ts'
 import { forEachLimited } from './lib/concurrency.ts'
 import { ratioOf, type Anchor, type CropSettings } from './lib/crop.ts'
 import type { ModelProgress } from './lib/aiBackground.ts'
-import { encodeToWebp, onModelProgress } from './lib/encoder.ts'
+import { cancelAll, encodeToWebp, onModelProgress, WORKER_COUNT } from './lib/encoder.ts'
 import type { ImageKind } from './lib/imageFiles.ts'
 import { listFileNames, openSubdirectory, resolveOutputTarget, writeFile } from './lib/output.ts'
 import { outputFileName, resolveName, withSizeSuffix, type ConflictPolicy, type NamingOptions } from './lib/outputNames.ts'
@@ -55,7 +55,7 @@ export interface Settings {
   conflict: ConflictPolicy
 }
 
-export type ResultStatus = 'waiting' | 'running' | 'done' | 'failed' | 'skipped'
+export type ResultStatus = 'waiting' | 'running' | 'done' | 'failed' | 'skipped' | 'cancelled'
 
 export interface ItemResult {
   status: ResultStatus
@@ -76,6 +76,8 @@ export interface Batch {
   outputLabel: string
   startedAt: number
   finishedAt?: number
+  /** 취소를 눌렀으면 true */
+  cancelled?: boolean
   /** AI 모델을 내려받는 중일 때만 있다 */
   modelProgress?: ModelProgress
 }
@@ -108,6 +110,8 @@ interface AppState {
   savePreset(name: string): string | null
   deletePreset(name: string): void
   startBatch(): Promise<void>
+  /** 처리 중인 작업을 멈춘다. 이미 저장한 파일은 그대로 둔다. (AC-9) */
+  cancelBatch(): void
   closeBatch(): void
 }
 
@@ -306,7 +310,11 @@ export const useAppStore = create<AppState>()((set, get) => {
         return dir
       }
 
-      for (const item of targets) {
+      const cancelled = () => get().batch?.cancelled === true
+
+      // Worker 수만큼 동시에 처리한다. 이름은 await 없이 정하고 바로 예약하므로 동시에 처리해도 겹치지 않는다.
+      await forEachLimited(targets, WORKER_COUNT, async (item) => {
+        if (cancelled()) return
         setResult(item.id, { status: 'running' })
         try {
           const slash = item.id.lastIndexOf('/')
@@ -332,9 +340,14 @@ export const useAppStore = create<AppState>()((set, get) => {
               outputPath: pathOf(planned[0].decision.name),
               error: '같은 이름의 파일이 있어 건너뛰었습니다',
             })
-            continue
+            return
           }
           for (const p of writes) dir.produced.add(p.decision.name.toLowerCase())
+          // 폴더를 여는 동안 취소했을 수 있다.
+          if (cancelled()) {
+            setResult(item.id, { status: 'cancelled' })
+            return
+          }
 
           const { outputs, background } = await encodeToWebp(item.file, item.kind, {
             ...options,
@@ -356,12 +369,27 @@ export const useAppStore = create<AppState>()((set, get) => {
                 .join(' · ') || undefined,
           })
         } catch (error) {
-          setResult(item.id, { status: 'failed', error: (error as Error).message })
+          if (cancelled()) setResult(item.id, { status: 'cancelled' })
+          else setResult(item.id, { status: 'failed', error: (error as Error).message })
         }
-      }
+      })
 
       onModelProgress(null)
-      set((s) => (s.batch ? { batch: { ...s.batch, finishedAt: Date.now(), modelProgress: undefined } } : {}))
+      set((s) => {
+        if (!s.batch) return {}
+        // 취소해서 시작하지 못한 파일을 표시한다.
+        const results = { ...s.batch.results }
+        for (const id of s.batch.ids) if (results[id].status === 'waiting') results[id] = { status: 'cancelled' }
+        return { batch: { ...s.batch, results, finishedAt: Date.now(), modelProgress: undefined } }
+      })
+    },
+
+    cancelBatch() {
+      const { batch } = get()
+      if (!batch || batch.finishedAt !== undefined || batch.cancelled) return
+      set({ batch: { ...batch, cancelled: true } })
+      // 처리 중인 변환을 바로 끝낸다. 변환을 마치고 저장 중인 파일은 끝까지 저장한다.
+      cancelAll()
     },
 
     closeBatch: () => set({ batch: null }),
